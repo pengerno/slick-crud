@@ -6,9 +6,9 @@ trait view extends viewFormat {
 
   def append(one: ViewFormat, two: ViewFormat): ViewFormat
 
-  def EditorView(ctx: String, uniqueId: String, tableName: TableName): EditorView
+  def View(ctx: String, uniqueId: String, tableName: TableName): View
 
-  trait EditorView{
+  trait View{
     type RenderedNamedValue = (TableColumn, NodeSeq)
     def uniqueId: String
     def tableName: TableName

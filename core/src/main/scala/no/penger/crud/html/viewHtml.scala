@@ -8,10 +8,10 @@ trait viewHtml extends view with viewFormatHtml {
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
-  override def EditorView(base: String, uniqueId: String, tableName: TableName) =
-    EditorViewHtml(base, uniqueId, tableName)
+  override def View(base: String, uniqueId: String, tableName: TableName) =
+    ViewHtml(base, uniqueId, tableName)
 
-  case class EditorViewHtml(base: String, uniqueId: String, tableName: TableName) extends EditorView {
+  case class ViewHtml(base: String, uniqueId: String, tableName: TableName) extends View {
 
     override def many(rows: Seq[Seq[NodeSeq]], cs: Seq[TableColumn]) =
       <div>

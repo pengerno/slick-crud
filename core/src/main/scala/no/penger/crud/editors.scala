@@ -14,7 +14,7 @@ import scala.reflect.ClassTag
  * An editor is the glue, and the only thing clients really need to see
  *
  *  - communicates through unfiltered (see intent)
- *  - render responses through an 'EditorView'
+ *  - render responses through a 'View'
  *  - talks to the database through an 'Editable'
  *  - renders and parses values through 'Cell's
  *  - sends notifications of (failed) updates thorough an 'UpdateNotifier'
@@ -22,7 +22,7 @@ import scala.reflect.ClassTag
  */
 trait editors extends editables with view with updateNotifier {
 
-  def respond(base: String, title: String)(body: ViewFormat): ResponseFunction[Any]
+  def respond(ctx: String, title: String)(body: ViewFormat): ResponseFunction[Any]
 
   import profile.simple._
 
@@ -102,7 +102,7 @@ trait editors extends editables with view with updateNotifier {
     def view(ctx: String)(implicit s: Session): ViewFormat = {
       val rows        = editable.rows(base(ctx), primaryKeys, query, isEditable, max = Some(1).filter(_ => isOnlyOneRow))
       val columnNames = editable.columns(query)
-      val ed          = EditorView(base(ctx), uniqueId, tableName)
+      val ed          = View(base(ctx), uniqueId, tableName)
 
       if (isOnlyOneRow) ed.rowOpt(None, rows.headOption, columnNames)
       else              ed.many(rows, columnNames)
@@ -113,7 +113,7 @@ trait editors extends editables with view with updateNotifier {
       val rowOpt      = editable.rows(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
       val columnNames = editable.columns(selectQuery)
       
-      EditorView(base(ctx), uniqueId, tableName).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
+      View(base(ctx), uniqueId, tableName).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
     }
 
     def update(id: ID, params: Map[String, Seq[String]])(implicit s: Session) =
