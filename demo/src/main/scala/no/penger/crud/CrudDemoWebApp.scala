@@ -71,7 +71,7 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   val Employees  = TableQuery[EmployeeT]
 }
 
-trait StoreCrudPlan extends StoreTables with Crud with loggingUpdateNotifier {
+trait StoreCrudPlan extends StoreTables with Crud with updateNotifierLogging {
   object crudPlan extends Plan {
 
     /**
@@ -92,7 +92,7 @@ trait StoreCrudPlan extends StoreTables with Crud with loggingUpdateNotifier {
     implicit val e2 = mappedEditable(Product.unapply)
     implicit val e3 = mappedEditable(Store.unapply)
 
-    object notifier extends LoggingUpdateNotifier
+    object notifier extends UpdateNotifierLogging
 
     private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees", notifier, editable = false)(key = _.id)
     private lazy val products = Editor(Products, "/products", notifier)(key = _.id)

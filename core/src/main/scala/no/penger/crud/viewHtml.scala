@@ -2,12 +2,18 @@ package no.penger.crud
 
 import scala.xml.NodeSeq
 
-trait htmlView extends view[NodeSeq] {
-  override def newView(base: String, uniqueId: String, tableName: TableName) = htmlEditorView(base, uniqueId, tableName)
+trait viewHtml extends view {
+  override final type ViewFormat = NodeSeq
 
-  case class htmlEditorView(base: String, uniqueId: String, tableName: TableName) extends EditorView{
+  override def append(one: NodeSeq, two: NodeSeq) =
+    one ++ two
 
-    override def many(rows: Seq[Seq[NodeSeq]], cs: Seq[TableColumn]): NodeSeq =
+  override def EditorView(base: String, uniqueId: String, tableName: TableName) =
+    EditorViewHtml(base, uniqueId, tableName)
+
+  case class EditorViewHtml(base: String, uniqueId: String, tableName: TableName) extends EditorView {
+
+    override def many(rows: Seq[Seq[NodeSeq]], cs: Seq[TableColumn]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
@@ -17,13 +23,13 @@ trait htmlView extends view[NodeSeq] {
         </table>
       </div>
 
-    override def rowOpt(id: Option[String], rowOpt: Option[Seq[NodeSeq]], cs: Seq[TableColumn]): NodeSeq =
+    override def rowOpt(id: Option[String], rowOpt: Option[Seq[NodeSeq]], cs: Seq[TableColumn]) =
       rowOpt match {
         case None      => view404(id)
         case Some(row) => single(cs zip row)
       }
 
-    def single(rowCells: Seq[RenderedNamedValue]): NodeSeq =
+    def single(rowCells: Seq[RenderedNamedValue]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
@@ -33,7 +39,7 @@ trait htmlView extends view[NodeSeq] {
         </table>
       </div>
 
-    def view404(idOpt: Option[String]): NodeSeq = idOpt match {
+    def view404(idOpt: Option[String]) = idOpt match {
       case Some(id) => <h1>{s"Could not find a $tableName for $id"}</h1>
       case None     => <h1>{s"Could not find this $tableName"}</h1>
     }

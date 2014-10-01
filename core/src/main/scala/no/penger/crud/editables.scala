@@ -73,7 +73,7 @@ trait editables extends namedCells with QueryParserModule {
       def namedCellForKey(key: String): Try[NamedCell] = {
         namedCellsForQuery.find(_.name.columnName == key) match {
           case Some(cell) => Success(cell)
-          case None       => Failure(new RuntimeException(s"table ${QueryParser.tablenameFrom(q)} does not have a column $key"))
+          case None       => Failure(new RuntimeException(s"table ${QueryParser.tableNameFrom(q)} does not have a column $key"))
         }
       }
 

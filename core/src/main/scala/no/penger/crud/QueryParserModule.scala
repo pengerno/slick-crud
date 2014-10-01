@@ -1,8 +1,12 @@
 package no.penger
 package crud
 
-trait QueryParserModule extends db.SlickTransactionBoundary {
+trait QueryParserModule {
   import scala.language.higherKinds
+
+  /* slick integration */
+  val profile: slick.driver.JdbcDriver
+  def db: profile.simple.Database
 
   /* aliases */
   final type Query[+E, U, C[_]] = profile.simple.Query[E, U, C]
@@ -31,7 +35,7 @@ trait QueryParserModule extends db.SlickTransactionBoundary {
     }
 
     /* find tablename in a slick ast */
-    object tablenameFrom extends Dfs[TableName] {
+    object tableNameFrom extends Dfs[TableName] {
       override val pred: PartialFunction[Node, TableName] = {
         case TableNode(_, tablename, _, _, _) => TableName(tablename)
       }
@@ -52,7 +56,7 @@ trait QueryParserModule extends db.SlickTransactionBoundary {
 
       def columnsPerTable(q: Q): Map[TableName, Seq[ColumnName]] =
         joinsFor.get(q.toNode).getOrElse(Seq(q.toNode)).map(
-          table => (tablenameFrom(table), columnsFor(pureFor.get(table) getOrElse table))
+          table => (tableNameFrom(table), columnsFor(pureFor.get(table) getOrElse table))
         ).toMap
 
       /* this showed up in some queries */

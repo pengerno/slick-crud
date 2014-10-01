@@ -35,13 +35,11 @@ object Build extends sbt.Build {
 
   val transactionsVersion = "0-4"
   val unfilteredVersion   = "0.8.2"
-  val scalaLoggingVersion = "2.1.2"
 
   lazy val crud = project("core")(
-    "no.penger"                   %% "tx-core"                    % transactionsVersion,
-    "com.typesafe.scala-logging"  %% "scala-logging-slf4j"              % scalaLoggingVersion,
+    "com.typesafe.slick"          %% "slick"                      % "2.1.0",
     "net.databinder"              %% "unfiltered-filter"          % unfilteredVersion,
-
+    "com.typesafe.scala-logging"  %% "scala-logging-slf4j"        % "2.1.2",
     "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "compile;provided;test",
 
     "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion % "test",

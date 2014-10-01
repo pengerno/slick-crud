@@ -98,7 +98,7 @@ class QueryParserTest
       def * = one
     }
 
-    val one = QueryParser.tablenameFrom(TableQuery[OneT])
+    val one = QueryParser.tableNameFrom(TableQuery[OneT])
     assertResult(TableName("t1"))(one)
   }
 }
