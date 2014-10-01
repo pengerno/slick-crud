@@ -38,8 +38,8 @@ trait editors extends editables with view with updateNotifier {
     def apply[TABLE : ClassTag, ID: Cell : BaseColumnType, PROJ: Editable]
       (query:    Query[TABLE, PROJ, Seq],
        mount:    String,
-       notifier: UpdateNotifier,
-       editable: Boolean = true)
+       notifier: UpdateNotifier = new UpdateNotifier,
+       editable: Boolean        = true)
       (key:      TABLE => Column[ID]) =
 
         new Editor[TABLE, ID, PROJ](query, mount, key, Nil, editable, isOnlyOneRow = false, notifier)
