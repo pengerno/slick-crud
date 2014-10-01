@@ -1,3 +1,3 @@
 package no.penger.crud
 
-trait Crud extends editors with crudInstances with productInstances
+trait Crud extends editors with crudInstances with productInstances with htmlView

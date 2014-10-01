@@ -2,18 +2,17 @@ package no.penger
 package crud
 
 import java.util.UUID
-import javax.servlet.http.HttpServletRequest
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
-import unfiltered.request.{HttpRequest, &, GET, POST, Params, Seg}
+import unfiltered.request.{&, GET, POST, Params, Seg}
 import unfiltered.response.{BadRequest, Ok, ResponseString}
 
 import scala.reflect.ClassTag
-import scala.xml.{Elem, NodeSeq}
+import scala.xml.NodeSeq
 
-trait editors extends editables with view {
+trait editors extends editables with view[NodeSeq] {
   import profile.simple._
 
   object Editor{
@@ -62,8 +61,8 @@ trait editors extends editables with view {
     lazy val tableName: String = QueryParser.tablenameFrom(query)
 
     val MountedAt = Seg.unapply(mount).get
-    
-    def ctxPath[T <: HttpServletRequest](req: HttpRequest[T]) = ContextPath.unapply(req).map(_._1).get
+
+    def base(ctx: String) = (ctx:: MountedAt).mkString("/")
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
@@ -77,13 +76,13 @@ trait editors extends editables with view {
     }
 
     def intent:Plan.Intent = {
-      case req@GET(ContextPath(_, Seg(MountedAt))) => transaction.readOnly{ implicit tx =>
-        presentPage(req, title = MountedAt.head){ view(req)}
+      case req@GET(ContextPath(ctx, Seg(MountedAt))) => transaction.readOnly{ implicit tx =>
+        respond(ctx, title = MountedAt.head){ view(ctx)}
       }
 
-      case req@GET(ContextPath(_, Seg(Id(p, id)))) => transaction.readOnly{ implicit tx =>
-        presentPage(req, title = s"${p.head} for $id"){
-          viewSingle(req, id) ++ editors.flatMap(_(id).view(req))
+      case req@GET(ContextPath(ctx, Seg(Id(p, id)))) => transaction.readOnly{ implicit tx =>
+        respond(ctx, title = s"${p.head} for $id"){
+          viewSingle(ctx, id) ++ editors.flatMap(_(id).view(ctx))
         }
       }
 
@@ -92,25 +91,20 @@ trait editors extends editables with view {
       }
     }
 
-    def view[T <: HttpServletRequest](req: HttpRequest[T])(implicit tx: Session): Elem = {
-      val rows: Seq[Seq[NodeSeq]] = editor.rows(ctxPath(req), pks, query, editable)
+    def view(ctx: String)(implicit tx: Session): NodeSeq = {
+      val rows: Seq[Seq[NodeSeq]] = editor.rows(base(ctx), pks, query, editable)
 
       if (onlyOne)
-        rows.headOption match {
-          case None      => WebIntegration.view404(tableName, None)
-          case Some(row) => WebIntegration.single(ctxPath(req), uniqueId, tableName, editor.columns(query).zip(row))
-        }
-      else WebIntegration.many(ctxPath(req), uniqueId, tableName, rows, editor.columns(query))
+        newEditor(base(ctx), uniqueId, tableName).rowOpt(None, rows.headOption, editor.columns(query))
+      else
+        newEditor(base(ctx), uniqueId, tableName).many(rows, editor.columns(query))
     }
 
-    def viewSingle[T <: HttpServletRequest](req: HttpRequest[T], id:ID)(implicit s:Session): Elem = {
+    def viewSingle(ctx: String, id:ID)(implicit s:Session): NodeSeq = {
       val selectQuery = query.filter(key(_) === id.bind)
-      val rowOpt      = editor.rows(ctxPath(req), pks, selectQuery, editable).headOption
-      
-      rowOpt match {
-        case None      => WebIntegration.view404(tableName, Some(id.toString))
-        case Some(row) => WebIntegration.single(ctxPath(req), uniqueId, tableName, editor.columns(selectQuery).zip(row))
-      }
+      val rowOpt      = editor.rows(base(ctx), pks, selectQuery, editable).headOption
+
+      newEditor(base(ctx), uniqueId, tableName).rowOpt(Some(id).map(_.toString), rowOpt, editor.columns(selectQuery))
     }
 
     def update(i:ID, params:Map[String, Seq[String]])(implicit tx: Session) =

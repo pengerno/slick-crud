@@ -113,8 +113,7 @@ trait StoreCrudPlan extends StoreTables with Crud {
     val intent = employees.intent orElse products.intent orElse stores.intent orElse resourceIntent
   }
 
-  override def presentPage[T <: HttpServletRequest](req: HttpRequest[T], title: String)(body: NodeSeq) =
-    Html5(PageTemplate(req).page(title)(body))
+  override def respond(ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx, title)(body))
 }
 
 object CrudDemoWebApp
