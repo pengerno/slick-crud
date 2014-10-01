@@ -13,8 +13,6 @@ trait StoreDomain{
   case class StoreId(id: String)
   case class Store(id: StoreId, name: Name, description: Option[Desc])
 
-//  case class StoreParams(isFancy: Boolean, )
-
   case class ProductId(id: Long)
   case class Product(id: ProductId, name: Name, quantity: Int, soldBy: StoreId)
 
@@ -34,7 +32,7 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id       = column[StoreId]     ("id")
     def name     = column[Name]        ("name")
-    def address  = column[Option[Desc]]("description")
+    def address  = column[Desc]("description").?
 
     def *        = (id, name, address) <> (Store.tupled, Store.unapply)
 
@@ -50,7 +48,7 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
     def soldByRef = column[StoreId]  ("sold_by")
 
     def soldBy   = foreignKey("product_store", soldByRef, Stores)(_.id)
-    def *         = (id, name, quantity, soldByRef) <> (Product.tupled, Product.unapply)
+    def *        = (id, name, quantity, soldByRef) <> (Product.tupled, Product.unapply)
   }
   val Products = TableQuery[ProductT]
   
@@ -115,12 +113,13 @@ class CrudDemoWebApp extends StoreCrudPlan with LiquibaseH2TransactionComponent 
 
     //thanks to http://grammar.about.com/od/words/a/punnamestores.htm
     val stores = extractStores(readLines("stores.txt").toList.zipWithIndex)
+
     //listofrandomnames.com
     val names = readLines("names.txt")
 
     val employees = stores.flatMap { store =>
       0 until howMany map { n =>
-        Employee(EmployeeId(0), Name(names.next), store.id)
+        Employee(EmployeeId(0), Name(names.next()), store.id)
       }
     }
     val products = stores.flatMap { store =>
@@ -133,8 +132,8 @@ class CrudDemoWebApp extends StoreCrudPlan with LiquibaseH2TransactionComponent 
   import profile.simple._
 
   transaction.readWrite{implicit tx =>
-    Stores insertAll (GenData.stores :_*)
+    Stores    insertAll (GenData.stores :_*)
     Employees insertAll (GenData.employees :_*)
-    Products insertAll (GenData.products :_*)
+    Products  insertAll (GenData.products :_*)
  }
 }
