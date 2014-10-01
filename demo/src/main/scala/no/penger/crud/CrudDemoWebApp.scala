@@ -1,11 +1,13 @@
-package no.penger.crud
+package no.penger
+package crud
 
-import no.penger.db.{LiquibaseH2TransactionComponent, SlickTransactionBoundary}
+import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
-import unfiltered.request.{HttpRequest, Seg}
+import unfiltered.filter.request.ContextPath
+import unfiltered.request.{GET, HttpRequest}
+import unfiltered.response._
 
 import scala.language.implicitConversions
-import scala.util.Random
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -22,7 +24,7 @@ trait StoreDomain{
   case class Employee(id: EmployeeId, name: Name, worksAt: StoreId)
 }
 
-trait StoreTables extends StoreDomain with SlickTransactionBoundary {
+trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   import profile.simple._
 
   implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.asString, Desc)
@@ -32,9 +34,9 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
   implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.id,       StoreId)
 
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
-    def id       = column[StoreId]     ("id")
-    def name     = column[Name]        ("name")
-    def address  = column[Desc]("description").?
+    def id       = column[StoreId]("id")
+    def name     = column[Name]   ("name")
+    def address  = column[Desc]   ("description").?
 
     def *        = (id, name, address) <> (Store.tupled, Store.unapply)
 
@@ -42,25 +44,27 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
     def employees = foreignKey("store_employees", id, Employees)(_.worksAtRef)
   }
   val Stores = TableQuery[StoreT]
-  
+
   class ProductT(tag: Tag) extends Table[Product](tag, "products") {
     def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
     def name      = column[Name]     ("name")
     def quantity  = column[Int]      ("quantity")
     def soldByRef = column[StoreId]  ("sold_by")
 
-    def soldBy   = foreignKey("product_store", soldByRef, Stores)(_.id)
     def *        = (id, name, quantity, soldByRef) <> (Product.tupled, Product.unapply)
+
+    def soldBy   = foreignKey("product_store", soldByRef, Stores)(_.id)
   }
   val Products = TableQuery[ProductT]
-  
+
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     def id         = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     def name       = column[Name]      ("name")
     def worksAtRef = column[StoreId]   ("works_at")
 
-    def worksAt    = foreignKey("employee_store", worksAtRef, Stores)(_.id)
     def *          = (id, name, worksAtRef) <> (Employee.tupled, Employee.unapply)
+
+    def worksAt    = foreignKey("employee_store", worksAtRef, Stores)(_.id)
   }
   val Employees  = TableQuery[EmployeeT]
 }
@@ -68,17 +72,28 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
 trait StoreCrudPlan extends StoreTables with CrudInstances {
   object crudPlan extends Plan {
 
+    /**
+     * we need to provide cell instanced for every type we expose through slick-crud,
+     *  in order for it to know how to render and parse them
+     */
     implicit val c1 = Cell[Name](_.asString, Name)
     implicit val c2 = Cell[Desc](_.asString, Desc)
     implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = true)
     implicit val c4 = Cell[ProductId](_.id.toString, s => ProductId(s.toLong), canEdit = false)
     implicit val c5 = Cell[EmployeeId](_.id.toString, s => EmployeeId(s.toLong), canEdit = false)
 
+    /**
+     * These editable-instances are necessary for now in order to expose
+     *  tables that have default projections to a case class.
+     *
+     *  CrudInstances can provide Editables for every tuple, but we need
+     *   to give directions for how to further map that tuple to
+     */
     implicit val e1 = mappedEditable[Employee, (EmployeeId, Name, StoreId)]
     implicit val e2 = mappedEditable[Product, (ProductId, Name, Int, StoreId)]
     implicit val e3 = mappedEditable[Store, (StoreId, Name, Option[Desc])]
 
-    private lazy val employees = Editor(Employees, "/employees")(key = _.id)
+    private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees")(key = _.id)
     private lazy val products = Editor(Products, "/products")(key = _.id)
 
     private lazy val stores = Editor(Stores, "/stores")(key = _.id).sub(
@@ -87,64 +102,30 @@ trait StoreCrudPlan extends StoreTables with CrudInstances {
       //todo: single something
     )
 
-    import unfiltered.filter.request.ContextPath
-    import unfiltered.request.GET
-    import unfiltered.response._
 
-    val javascriptIntent: Plan.Intent = {
-      case req@GET(ContextPath(ctx, Seg("scripts" :: "crud.js" :: Nil))) =>
-        val is      = classOf[StoreCrudPlan].getResourceAsStream("/scripts/crud.js")
-        val content = io.Source.fromInputStream(is).getLines().mkString("\n")
-        Ok ~> ResponseString(content)
+    val resourceIntent: Plan.Intent = {
+      /* dont do this at home etc */
+      case req@GET(ContextPath(ctx, resource)) =>
+        Option(classOf[StoreCrudPlan].getResourceAsStream(resource.mkString)).fold[ResponseFunction[Any]](NotFound) (
+          is => Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
+        )
     }
 
-    val intent = employees.intent orElse products.intent orElse stores.intent orElse javascriptIntent
+    val intent = employees.intent orElse products.intent orElse stores.intent orElse resourceIntent
   }
 
   override def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq) =
-    PageTemplate.page(ctx, title)(body)
-
+    Html5(PageTemplate.page(ctx, title)(body))
 }
 
-class CrudDemoWebApp extends StoreCrudPlan with LiquibaseH2TransactionComponent with Plan {
+object CrudDemoWebApp
+  extends StoreCrudPlan
+  with GenDataModule
+  with db.LiquibaseH2TransactionComponent
+  with Plan
+  with LazyLogging {
+
   override lazy val intent = crudPlan.intent
-
-  object GenData {
-    private def readLines(resourceName: String): Iterator[String] = {
-      io.Source.fromInputStream(classOf[CrudDemoWebApp].getResourceAsStream("/" + resourceName))
-        .getLines()
-        .map(_.trim)
-        .filterNot(_.isEmpty)
-    }
-
-    private def extractStores(lines: List[(String, Int)]): List[Store] = lines match {
-      case (name, id) :: (description, _) :: tail =>
-        Store(
-          StoreId(id.toString),
-          Name(name),
-          Some(Desc(description)).filterNot(_ => Random.nextInt(6) == 0)
-        ) :: extractStores(tail)
-      case _ => Nil
-    }
-    private def howMany = 1 + Random.nextInt(6)
-
-    //thanks to http://grammar.about.com/od/words/a/punnamestores.htm
-    val stores = extractStores(readLines("stores.txt").toList.zipWithIndex)
-
-    //listofrandomnames.com
-    val names = readLines("names.txt")
-
-    val employees = stores.flatMap { store =>
-      0 until howMany map { n =>
-        Employee(EmployeeId(0), Name(names.next()), store.id)
-      }
-    }
-    val products = stores.flatMap { store =>
-      0 until howMany map { n =>
-        Product(ProductId(0), Name("product name"), Random.nextInt(500), store.id)
-      }
-    }
-  }
 
   import profile.simple._
 
