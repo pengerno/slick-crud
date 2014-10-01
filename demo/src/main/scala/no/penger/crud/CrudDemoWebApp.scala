@@ -2,9 +2,11 @@ package no.penger.crud
 
 import no.penger.db.{LiquibaseH2TransactionComponent, SlickTransactionBoundary}
 import unfiltered.filter.Plan
+import unfiltered.request.{HttpRequest, Seg}
 
 import scala.language.implicitConversions
 import scala.util.Random
+import scala.xml.NodeSeq
 
 trait StoreDomain{
   case class Name(asString: String)
@@ -64,29 +66,44 @@ trait StoreTables extends StoreDomain with SlickTransactionBoundary {
 }
 
 trait StoreCrudPlan extends StoreTables with CrudInstances {
-
-  implicit val c1 = Cell[Name](_.asString, Name)
-  implicit val c2 = Cell[Desc](_.asString, Desc)
-  implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = true)
-  implicit val c4 = Cell[ProductId](_.id.toString, s => ProductId(s.toLong), canEdit = false)
-  implicit val c5 = Cell[EmployeeId](_.id.toString, s => EmployeeId(s.toLong), canEdit = false)
-
-  implicit val e1 = mappedEditable[Employee, (EmployeeId, Name, StoreId)]
-  implicit val e2 = mappedEditable[Product,  (ProductId,  Name, Int, StoreId)]
-  implicit val e3 = mappedEditable[Store,    (StoreId,    Name, Option[Desc])]
-
-  private lazy val employees = Editor(Employees, "/employees")(key = _.id)
-  private lazy val products  = Editor(Products, "/products")(key = _.id)
-
-  private lazy val stores    = Editor(Stores, "/stores")(key = _.id).sub(
-    employees.on(_.worksAtRef),
-    products.on(_.soldByRef)
-    //todo: single something
-  )
-
   object crudPlan extends Plan {
-    val intent = employees.intent orElse products.intent orElse stores.intent
+
+    implicit val c1 = Cell[Name](_.asString, Name)
+    implicit val c2 = Cell[Desc](_.asString, Desc)
+    implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = true)
+    implicit val c4 = Cell[ProductId](_.id.toString, s => ProductId(s.toLong), canEdit = false)
+    implicit val c5 = Cell[EmployeeId](_.id.toString, s => EmployeeId(s.toLong), canEdit = false)
+
+    implicit val e1 = mappedEditable[Employee, (EmployeeId, Name, StoreId)]
+    implicit val e2 = mappedEditable[Product, (ProductId, Name, Int, StoreId)]
+    implicit val e3 = mappedEditable[Store, (StoreId, Name, Option[Desc])]
+
+    private lazy val employees = Editor(Employees, "/employees")(key = _.id)
+    private lazy val products = Editor(Products, "/products")(key = _.id)
+
+    private lazy val stores = Editor(Stores, "/stores")(key = _.id).sub(
+      employees.on(_.worksAtRef),
+      products.on(_.soldByRef)
+      //todo: single something
+    )
+
+    import unfiltered.filter.request.ContextPath
+    import unfiltered.request.GET
+    import unfiltered.response._
+
+    val javascriptIntent: Plan.Intent = {
+      case req@GET(ContextPath(ctx, Seg("scripts" :: "crud.js" :: Nil))) =>
+        val is      = classOf[StoreCrudPlan].getResourceAsStream("/scripts/crud.js")
+        val content = io.Source.fromInputStream(is).getLines().mkString("\n")
+        Ok ~> ResponseString(content)
+    }
+
+    val intent = employees.intent orElse products.intent orElse stores.intent orElse javascriptIntent
   }
+
+  override def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq) =
+    PageTemplate.page(ctx, title)(body)
+
 }
 
 class CrudDemoWebApp extends StoreCrudPlan with LiquibaseH2TransactionComponent with Plan {

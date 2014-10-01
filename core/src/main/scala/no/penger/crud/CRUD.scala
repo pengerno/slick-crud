@@ -7,7 +7,7 @@ import no.penger.db.SlickTransactionBoundary
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.request._
-import unfiltered.response.{BadRequest, Ok, ResponseString}
+import unfiltered.response.{ResponseFunction, BadRequest, Ok, ResponseString}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -16,6 +16,8 @@ import scala.xml.NodeSeq
 
 trait CRUD extends SlickTransactionBoundary {
   import profile.simple._
+
+  def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any]
 
   /**
    * this is the main entry point, use this to expose database tables.
@@ -63,8 +65,8 @@ trait CRUD extends SlickTransactionBoundary {
     lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
     case class script(ctx:String) {
-      def single = <script type="text/javascript">FINN.pf.crud.single('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
-      def view   = <script type="text/javascript">FINN.pf.crud.view('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
+      def single = <script type="text/javascript">no.penger.crud.single('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
+      def view   = <script type="text/javascript">no.penger.crud.view('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
     }
 
     object Id {
@@ -79,13 +81,13 @@ trait CRUD extends SlickTransactionBoundary {
 
     def intent:Plan.Intent = {
       case req@GET(ContextPath(ctx, Seg(`path`))) => transaction.readOnly{ implicit tx =>
-        PageTemplate.page(ctx, path.head){
+        presentPage(req, ctx, path.head){
           view(ctx)
         }
       }
 
       case req@GET(ContextPath(ctx, Seg(Id(p, id)))) => transaction.readOnly{ implicit tx =>
-        PageTemplate.page(ctx, s"${p.head} for $id"){
+        presentPage(req, ctx, s"${p.head} for $id"){
           viewsingle(ctx, id) ++ editors.flatMap(_(id).view(ctx))
         }
       }

@@ -1,8 +1,8 @@
-var FINN     = FINN || {};
-FINN.pf      = FINN.pf || {};
-FINN.pf.crud = FINN.pf.crud || {};
+var no = no || {};
+no.penger = no.penger || {};
+no.penger.crud = no.penger.crud || {};
 
-FINN.pf.crud.makeEditable = function(editable, onChange){
+no.penger.crud.makeEditable = function(editable, onChange){
     var current;
 
     editable.focus(function(){
@@ -28,16 +28,16 @@ FINN.pf.crud.makeEditable = function(editable, onChange){
     })
 };
 
-FINN.pf.crud.single = function(url, root){
+no.penger.crud.single = function(url, root){
 
     function setup(){
-        FINN.pf.crud.makeEditable($(root + ' [contenteditable=true]'), function(text, old){
+        no.penger.crud.makeEditable($(root + ' [contenteditable=true]'), function(text, old){
             var elem  = $(this);
             var id    = elem.closest('table').find('td:first + td').text();
             var key   = elem.closest('tr').find('td:first').text();
             var data  = {};
             data[key] = text;
-            FINN.pf.crud.send(url + "/" + id, data, function(){
+            no.penger.crud.send(url + "/" + id, data, function(){
                 elem.text(old);
             });
         });
@@ -50,7 +50,7 @@ FINN.pf.crud.single = function(url, root){
             var checked = this.checked;
             var data    = {};
             data[key]   = checked;
-            FINN.pf.crud.send(url + "/" + id, data, function(){
+            no.penger.crud.send(url + "/" + id, data, function(){
                 self.checked = !checked;
             });
         })
@@ -59,10 +59,10 @@ FINN.pf.crud.single = function(url, root){
     $(setup)
 };
 
-FINN.pf.crud.view = function(path, root){
+no.penger.crud.view = function(path, root){
 
     function setup(){
-        FINN.pf.crud.makeEditable($(root + ' [contenteditable=true]'), function(text, old){
+        no.penger.crud.makeEditable($(root + ' [contenteditable=true]'), function(text, old){
             var elem   = $(this);
             var column = elem.closest('table').find('th:eq('+this.cellIndex+')').text();
             var idTd   = elem.parent().find('td:first');
@@ -71,7 +71,7 @@ FINN.pf.crud.view = function(path, root){
             var data     = {};
             data[column] = text;
 
-            FINN.pf.crud.send(path + "/" + id, data, function(){
+            no.penger.crud.send(path + "/" + id, data, function(){
                 elem.text(old);
             });
         });
@@ -86,7 +86,7 @@ FINN.pf.crud.view = function(path, root){
             var data     = {};
             data[column] = checked;
 
-            FINN.pf.crud.send(path + "/" + id, data, function(){
+            no.penger.crud.send(path + "/" + id, data, function(){
                 self.checked = !checked;
             })
         })
@@ -95,7 +95,7 @@ FINN.pf.crud.view = function(path, root){
     $(setup)
 };
 
-FINN.pf.crud.send = function(url, data, undo){
+no.penger.crud.send = function(url, data, undo){
     $.ajax({
         url: url,
         type: 'post',
