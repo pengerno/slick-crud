@@ -1,8 +1,8 @@
 package no.penger.crud
 
-trait crudInstances extends editables {
+trait editableInstances extends editables {
 
-  implicit val boolean = new ValueCell[Boolean] {
+  implicit val booleanCell = new ValueCell[Boolean] {
     private def checked(elem: xml.Elem, checked: Boolean) =
       if (checked) elem % xml.Attribute("checked", Seq(xml.Text("checked")), xml.Null) else elem
 

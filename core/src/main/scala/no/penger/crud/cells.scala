@@ -28,20 +28,18 @@ trait cells {
 
   object Cell{
     /* handling of optional values*/
-    implicit def optionCell[A: Cell]: Cell[Option[A]] = new Cell[Option[A]] {
-      val cell = implicitly[Cell[A]]
-
+    implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = new Cell[Option[A]] {
       def link(ctx: String, e: Option[A]) =
-        e.map(v => cell.link(ctx, v)).getOrElse(fixed(e))
+        e.map(v => wrapped.link(ctx, v)).getOrElse(fixed(e))
 
       def editable(e: Option[A]) =
-        e.map(cell.editable).getOrElse(<td contenteditable="true" align="right"></td>)
+        e.map(wrapped.editable).getOrElse(<td contenteditable="true" align="right"></td>)
 
       def fixed(e: Option[A]) =
-        e.map(cell.fixed).getOrElse(<td align="right"></td>)
+        e.map(wrapped.fixed).getOrElse(<td align="right"></td>)
 
       def tryCast(value: String): Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
-        case Some(v) => cell.tryCast(value).map(Some(_))
+        case Some(v) => wrapped.tryCast(value).map(Some(_))
         case None    => Success(None)
       }
     }

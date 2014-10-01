@@ -1,6 +1,8 @@
 package no.penger
 
 package object crud {
+  trait Crud extends editors with editableInstances with editableProductInstances with viewHtml
+
   case class Update(column: String, oldValue: Option[Any], newValue: Any, numUpdated: Int)
 
   case class FailedUpdate(column: String, values: Seq[String], t: Throwable)
