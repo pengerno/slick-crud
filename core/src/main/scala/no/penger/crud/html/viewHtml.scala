@@ -1,9 +1,9 @@
 package no.penger.crud
+package html
 
 import scala.xml.NodeSeq
 
-trait viewHtml extends view {
-  override final type ViewFormat = NodeSeq
+trait viewHtml extends view with viewFormatHtml {
 
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two

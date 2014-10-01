@@ -3,7 +3,6 @@ package crud
 
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
-import scala.xml.NodeSeq
 
 trait editables extends namedCells with queryParser {
   import profile.simple._
@@ -15,17 +14,13 @@ trait editables extends namedCells with queryParser {
     def list(e:PROJECTION):List[Any]
     def columns(q:Query[_, PROJECTION, Seq]):Seq[TableColumn] = QueryParser.columns(q)
 
-    def namedCells(q:Query[_, PROJECTION, Seq]) =
-      columns(q).zip(cells).map{
-        case (cell, column) => NamedCell(cell, column)
-      }
-
     /* fetches rows from db and renders them using the cells provided in cells() */
     def rows[T](ctx:      String,
                 pk:       Set[TableColumn],
                 q:        Query[T, PROJECTION, Seq],
                 editable: Boolean,
-                max:      Option[Int] = None)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
+                max:      Option[Int] = None)
+               (implicit tx: Session): Seq[Seq[ViewFormat]] = {
 
       val rows  = max.fold(q)(n => q.take(n)).list
       val named = namedCells(q)
@@ -38,29 +33,6 @@ trait editables extends namedCells with queryParser {
             else               cell.fixed(value)
         }
       }
-    }
-
-    /* uses reflection to find all slick columns for a table, and then inspect the AST
-     *  to find the one we want to update */
-    def columnForCell[TABLE: ClassTag](table:TABLE, cell: NamedCell): Column[Any] = {
-      import scala.reflect.runtime.universe._
-
-      val mirror    = runtimeMirror(this.getClass.getClassLoader)
-      val reflected = mirror.reflect(table)
-
-      val methods   = reflected.symbol.asType.toType.members.collect {
-        case m if m.typeSignature.resultType.typeConstructor =:= typeOf[slick.lifted.Column[Any]].typeConstructor => m.asMethod
-      }
-
-      val appliedMethods = methods.map(m => reflected.reflectMethod(m).apply())
-      val allColumns     = appliedMethods.map(_.asInstanceOf[Column[Any]]).toArray
-
-      val Column = cell.name.c
-
-      allColumns.map(n => (n, n.toNode)).collectFirst{
-        case (n,                       QueryParser.NamedColumn(Column))  => n
-        case (n, slick.ast.OptionApply(QueryParser.NamedColumn(Column))) => n
-      }.get
     }
 
     def update[TABLE](params: Map[String, Seq[String]],
@@ -97,7 +69,35 @@ trait editables extends namedCells with queryParser {
       sequence(results)
     }
 
-    def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
+    private def namedCells(q:Query[_, PROJECTION, Seq]) =
+      columns(q).zip(cells).map{
+        case (cell, column) => NamedCell(cell, column)
+      }
+
+    /* uses reflection to find all slick columns for a table, and then inspect the AST
+     *  to find the one we want to update */
+    private def columnForCell[TABLE: ClassTag](table:TABLE, cell: NamedCell): Column[Any] = {
+      import scala.reflect.runtime.universe._
+
+      val mirror    = runtimeMirror(this.getClass.getClassLoader)
+      val reflected = mirror.reflect(table)
+
+      val methods   = reflected.symbol.asType.toType.members.collect {
+        case m if m.typeSignature.resultType.typeConstructor =:= typeOf[slick.lifted.Column[Any]].typeConstructor => m.asMethod
+      }
+
+      val appliedMethods = methods.map(m => reflected.reflectMethod(m).apply())
+      val allColumns     = appliedMethods.map(_.asInstanceOf[Column[Any]]).toArray
+
+      val Column = cell.name.c
+
+      allColumns.map(n => (n, n.toNode)).collectFirst{
+        case (n,                       QueryParser.NamedColumn(Column))  => n
+        case (n, slick.ast.OptionApply(QueryParser.NamedColumn(Column))) => n
+      }.get
+    }
+
+    private def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
       result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
         case (Right(acc), Right(u)) => Right(acc :+ u)
         case (Left(acc),  Left(f))  => Left(acc :+ f)

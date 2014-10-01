@@ -71,7 +71,7 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   val Employees  = TableQuery[EmployeeT]
 }
 
-trait StoreCrudPlan extends StoreTables with Crud with updateNotifierLogging {
+trait StoreCrudPlan extends StoreTables with Crud {
   object crudPlan extends Plan {
 
     /**

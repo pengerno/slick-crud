@@ -1,13 +1,23 @@
 package no.penger.crud
 
-
 /**
  * Add support for tuples out of the box
  */
 trait editableProductInstances extends editables {
+
   trait EditableProduct[P <: Product] extends Editable[P] {
     def list(e: P): List[Any] = e.productIterator.toList
   }
+
+  /**
+   * Use this to use tables mapped to a non-tuple structure.
+   **/
+  def mappedEditable[Mapped, Tupled <: Product : Editable](unapply: Mapped => Option[Tupled]) =
+    new Editable[Mapped] {
+      private val wrapped          = implicitly[Editable[Tupled]]
+      override def list(e: Mapped) = wrapped.list(unapply(e).get)
+      override def cells           = wrapped.cells
+    }
 
   private def c[A: Cell]: Cell[A] = implicitly[Cell[A]]
 

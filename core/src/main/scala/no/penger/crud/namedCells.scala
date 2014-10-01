@@ -13,9 +13,9 @@ import scala.util.Try
 trait namedCells extends cells {
   trait NamedCell {
     def tryCast(s: String):            Try[Any]
-    def fixed(value: Any):             xml.NodeSeq
-    def editable(value: Any):          xml.NodeSeq
-    def link(ctx: String, value: Any): xml.NodeSeq
+    def fixed(value: Any):             ViewFormat
+    def editable(value: Any):          ViewFormat
+    def link(ctx: String, value: Any): ViewFormat
     def name:                          TableColumn
   }
 

@@ -1,7 +1,10 @@
 package no.penger
 
 package object crud {
-  trait Crud extends editors with editableInstances with editableProductInstances with viewHtml
+
+  trait CrudAbstract extends editors with editableProductInstances
+
+  trait Crud extends CrudAbstract with html.cellInstances with html.viewHtml with logging.updateNotifierLogging
 
   case class Update(column: String, oldValue: Option[Any], newValue: Any, numUpdated: Int)
 
