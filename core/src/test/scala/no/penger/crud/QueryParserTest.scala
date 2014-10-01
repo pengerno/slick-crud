@@ -85,18 +85,6 @@ class QueryParserTest
     myAssert(TableQuery[OneT].join(TableQuery[TwoT].rightJoin(TableQuery[ThreeT].map(_.three))), Seq("t1.one", "t1.two", "t2.one", "t2.two", "t3.three"))(QueryParser.columns)
   }
 
-  test("understand sorted queries"){
-    class OneT(tag: Tag) extends Table[String](tag, "t1") {
-      def one = column[String]("one")
-      def * = one
-    }
-
-    val one = QueryParser.tableFrom.get(TableQuery[OneT])
-    val two = QueryParser.tableFrom.get(TableQuery[OneT].sortBy(_.one))
-    assertResult(true)(one.isDefined)
-    assertResult(true)(two.isDefined)
-  }
-
   test("get tablename"){
     class OneT(tag: Tag) extends Table[String](tag, "t1") {
       def one = column[String]("one")
