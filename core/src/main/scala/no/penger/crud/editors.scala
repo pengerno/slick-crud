@@ -26,47 +26,58 @@ trait editors extends editables with view with updateNotifier {
 
   import profile.simple._
 
-  object Editor{
+  object Editor {
     /**
+     * Default entry point that a client should use to expose a table
+     * 
+     * This constructor with multiple parameter sets exists just to drive type inference
+     * 
      * @param mount the url through which the exposed table can be reached
-     * @param query a query on a table
-     * @param key a function that maps a projection L to its id column to be used for updating one row
-     * @tparam TABLE the type of the lifted projection of a table, for example (Column[Int], Column[String])
-     * @tparam ID the type of the primary key column
-     * @tparam PROJ the type of the projection of a table, for example (Int, String)
+     * @param table the TableQuery[E] of the table we want to expose 
+     * @param notifier override this if you want side effects after updates
+     * @param isEditable set this to false if the whole table should be read-only 
+     * @param query a mapping from the tables default projection, pass in identity if you just want the whole table
+     * @param pk a function that maps a projection L to its primary key column. Multi-column primary keys are not supported.
+     
+     * @tparam ROW row type for the database 'table'
+     * @tparam LP the lifted projection, for example (Column[Int], Column[String])
+     * @tparam P the projection, for example (Int, String)
+     * @tparam ID the primary key column, for example Column[Int]
+     *            
      */
-    def apply[TABLE : ClassTag, ID: Cell : BaseColumnType, PROJ: Editable]
-      (query:    Query[TABLE, PROJ, Seq],
-       mount:    String,
-       notifier: UpdateNotifier = new UpdateNotifier,
-       editable: Boolean        = true)
-      (key:      TABLE => Column[ID]) =
+    def apply[ROW <: AbstractTable[_], LP : ClassTag, P : Editable, ID: Cell : BaseColumnType]
+      (mount:      String,
+       table:      TableQuery[ROW],
+       notifier:   UpdateNotifier     = new UpdateNotifier,
+       isEditable: Boolean            = true)
+      (query:      TableQuery[ROW] => Query[LP, P, Seq])
+      (pk:         LP => Column[ID]) =
 
-        new Editor[TABLE, ID, PROJ](query, mount, key, Nil, editable, isOnlyOneRow = false, notifier)
+      new Editor[LP, P, ID](mount, query(table), pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[TABLE : ClassTag, ID: Cell : BaseColumnType, L: Editable] private (
-      query:        Query[TABLE, L, Seq],
+  case class Editor[LP : ClassTag, P: Editable, ID: Cell : BaseColumnType] private (
       mount:        String,
-      key:          TABLE  => Column[ID],
-      editors:      Seq[ID => Editor[_, _, _]],
+      query:        Query[LP, P, Seq],
+      pk:           LP  => Column[ID],
+      notifier:     UpdateNotifier,
       isEditable:   Boolean,
-      isOnlyOneRow: Boolean,
-      notifier:     UpdateNotifier) {
+      editors:      Seq[ID => Editor[_, _, _]],
+      isOnlyOneRow: Boolean) {
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
-    def on[X : BaseColumnType](f:TABLE => Column[X])(x:X) = copy(query = query.filter(f(_) === x))
+    def on[X : BaseColumnType](f:LP => Column[X])(x:X) = copy(query = query.filter(f(_) === x))
 
-    /* return a new editor that also exposes other editors referenced via their primary key */
+    /* return a new editor with referenced subeditors */
     def sub(editors:(ID => Editor[_, _, _])*) = copy(editors = editors)
 
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
-    val primaryKeys = QueryParser.primaryKeys(query.map(key))
+    val primaryKeys = QueryParser.primaryKeys(query.map(pk))
     val tableName   = QueryParser.tableNameFrom(query)
     
-    val editable    = implicitly[Editable[L]]
+    val editable    = implicitly[Editable[P]]
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
@@ -109,7 +120,7 @@ trait editors extends editables with view with updateNotifier {
     }
 
     def viewRow(ctx: String, id:ID)(implicit s:Session): ViewFormat = {
-      val selectQuery = query.filter(key(_) === id.bind)
+      val selectQuery = query.filter(pk(_) === id.bind)
       val rowOpt      = editable.rows(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
       val columnNames = editable.columns(selectQuery)
       
@@ -117,7 +128,7 @@ trait editors extends editables with view with updateNotifier {
     }
 
     def update(id: ID, params: Map[String, Seq[String]])(implicit s: Session) =
-      editable.update(params, query.filter(key(_) === id)) match {
+      editable.update(params, query.filter(pk(_) === id)) match {
         case Left(fails: Seq[FailedUpdate]) =>
           s.rollback()
           fails foreach notifier.updateFailed(tableName, id)

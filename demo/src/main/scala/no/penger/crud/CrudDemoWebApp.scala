@@ -94,15 +94,16 @@ trait StoreCrudPlan extends StoreTables with Crud {
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
-    private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees", notifier, editable = false)(key = _.id)
-    private lazy val products = Editor(Products, "/products", notifier)(key = _.id)
-
-    private lazy val stores = Editor(Stores, "/stores", notifier)(key = _.id).sub(
+    /* not editable, sorted by name*/
+    private lazy val employees = Editor("/employees", Employees, notifier, isEditable = false)(_.sortBy(_.name.asc))(_.id)
+    /* projection */
+    private lazy val products  = Editor("/products",  Products,  notifier)(_.map(t => (t.id, t.name, t.soldByRef)))(_._1)
+    /* no custom query, but has foreign keys to employees and products */
+    private lazy val stores    = Editor("/stores",    Stores,    notifier)(identity)(_.id).sub(
       employees.on(_.worksAtRef),
-      products.on(_.soldByRef)
+      products.on(_._3)
       //todo: single something
     )
-
 
     val resourceIntent: Plan.Intent = {
       /* dont do this at home etc */

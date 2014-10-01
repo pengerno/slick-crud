@@ -37,6 +37,7 @@ class QueryParserTest
     }
     myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(tc("t", "two")))(QueryParser.columns)
     myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq(tc("t", "two"), tc("t", "three")))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t => (t.two, t.three)).map(_._1), Seq(tc("t", "two")))(QueryParser.columns)
   }
 
   test("understand case class projection"){

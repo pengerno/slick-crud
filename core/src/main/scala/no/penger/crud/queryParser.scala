@@ -9,8 +9,10 @@ trait queryParser {
   def db: profile.simple.Database
 
   /* aliases */
-  final type Query[+E, U, C[_]] = profile.simple.Query[E, U, C]
-  final type Q = Query[_, _, Seq]
+  final type AbstractTable[T]                  = slick.lifted.AbstractTable[T]
+  final type TableQuery[E <: AbstractTable[_]] = slick.lifted.TableQuery[E]
+  final type Query[+E, U, C[_]]                = profile.simple.Query[E, U, C]
+  final type Q                                 = Query[_, _, Seq]
 
   /**
    * This is all about diving into slicks AST. Dfs implements a naive depth first search which
@@ -19,7 +21,7 @@ trait queryParser {
    */
   object QueryParser {
 
-    import scala.slick.ast.{FieldSymbol, Join, Node, OptionApply, ProductNode, Pure, Select, TableNode}
+    import scala.slick.ast.{Bind, ElementSymbol, FieldSymbol, Join, Node, OptionApply, ProductNode, Pure, Select, TableNode}
 
     trait Dfs[T] {
       def pred: PartialFunction[Node, T]
@@ -43,7 +45,8 @@ trait queryParser {
 
     object NamedColumn {
       def unapply(n: Node) = n match {
-        case (Select(_, FieldSymbol(name))) => Some(ColumnName(name))
+        case Select(_, FieldSymbol(name)) => Some(ColumnName(name))
+        case Select(_, ElementSymbol(idx)) => Some(ColumnName(idx.toString))
         case _ => None
       }
     }
@@ -56,13 +59,18 @@ trait queryParser {
 
       def columnsPerTable(q: Q): Seq[(TableName, Seq[ColumnName])] =
         joinsFor find q.toNode getOrElse Seq(q.toNode) map {
-          table => (tableNameFrom(table), columnsFor(pureFor find table getOrElse table))
+          table => (tableNameFrom(table), columnsFor(bindFor find table getOrElse table))
         }
 
-      /* this showed up in some queries */
       object pureFor extends Dfs[Node] {
         override val pred: PartialFunction[Node, Node] = {
           case p: Pure => p
+        }
+      }
+
+      object bindFor extends Dfs[Node] {
+        override val pred: PartialFunction[Node, Node] = {
+          case Bind(_, _, n) => n
         }
       }
 
