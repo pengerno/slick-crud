@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 
 class QueryParserTest
   extends FunSuite
-  with QueryParserModule
+  with queryParser
   with db.H2TransactionComponent {
 
   def db = ???

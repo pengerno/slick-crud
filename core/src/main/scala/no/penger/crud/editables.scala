@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 import scala.xml.NodeSeq
 
-trait editables extends namedCells with QueryParserModule {
+trait editables extends namedCells with queryParser {
   import profile.simple._
 
   @annotation.implicitNotFound("Couldnt find cell instances for all the types in projection ${PROJECTION}")

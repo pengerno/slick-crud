@@ -10,6 +10,7 @@ package object crud {
   }
   case class TableName(asString: String) extends AnyVal {
     override def toString: String = asString
+    def withColumn(c: ColumnName) = TableColumn(this, c)
   }
   case class TableColumn(t: TableName, c: ColumnName){
     override def toString: String = c.asString

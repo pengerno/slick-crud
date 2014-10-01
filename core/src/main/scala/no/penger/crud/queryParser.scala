@@ -1,7 +1,7 @@
 package no.penger
 package crud
 
-trait QueryParserModule {
+trait queryParser {
   import scala.language.higherKinds
 
   /* slick integration */
@@ -25,13 +25,13 @@ trait QueryParserModule {
       def pred: PartialFunction[Node, T]
 
       /* im sure this will blow up one day. sorry*/
-      final def apply(q: Q): T = get(q.toNode).get
+      final def apply(q: Q): T = find(q.toNode).get
 
-      final def apply(under: Node): T = get(under).get
+      final def apply(under: Node): T = find(under).get
 
-      final def get(under: Node): Option[T] =
+      final def find(under: Node): Option[T] =
         Some(under) collectFirst pred orElse
-          (under.nodeChildren.toStream map get collectFirst { case Some(found) => found})
+          (under.nodeChildren.toStream map find collectFirst { case Some(found) => found})
     }
 
     /* find tablename in a slick ast */
@@ -51,13 +51,13 @@ trait QueryParserModule {
     object columns extends (Q => Seq[TableColumn]) {
       def apply(q: Q): Seq[TableColumn] =
         columnsPerTable(q).flatMap {
-          case (table, columns) => columns.map(TableColumn(table, _))
+          case (table, columns) => columns map table.withColumn
         }.toSeq
 
-      def columnsPerTable(q: Q): Map[TableName, Seq[ColumnName]] =
-        joinsFor.get(q.toNode).getOrElse(Seq(q.toNode)).map(
-          table => (tableNameFrom(table), columnsFor(pureFor.get(table) getOrElse table))
-        ).toMap
+      def columnsPerTable(q: Q): Seq[(TableName, Seq[ColumnName])] =
+        joinsFor find q.toNode getOrElse Seq(q.toNode) map {
+          table => (tableNameFrom(table), columnsFor(pureFor find table getOrElse table))
+        }
 
       /* this showed up in some queries */
       object pureFor extends Dfs[Node] {
@@ -72,9 +72,9 @@ trait QueryParserModule {
           /* more than one column selected */
           case ProductNode(cs) => cs map {
             /* normal column */
-            case (NamedColumn(name)) => name
+            case NamedColumn(name) => name
             /* optional column */
-            case (OptionApply(NamedColumn(name))) => name
+            case OptionApply(NamedColumn(name)) => name
           }
           /* exactly one column selected */
           case NamedColumn(name) => Seq(name)
@@ -83,7 +83,7 @@ trait QueryParserModule {
 
       /* this supports nested, ie more than two tables, joins. not tested much, heh */
       object joinsFor extends Dfs[Seq[Node]] {
-        def recJoin(n: Node) = joinsFor.get(n).getOrElse(Seq(n))
+        def recJoin(n: Node) = joinsFor find n getOrElse Seq(n)
 
         override val pred: PartialFunction[Node, Seq[Node]] = {
           case Join(_, _, left, right, _, _) => recJoin(left) ++ recJoin(right)
