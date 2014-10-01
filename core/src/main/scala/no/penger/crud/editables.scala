@@ -13,7 +13,7 @@ trait editables extends namedCells with QueryParserModule {
 
     def cells:List[Cell[_]]
     def list(e:PROJECTION):List[Any]
-    def columns(q:Query[_, PROJECTION, Seq]):Seq[String] = QueryParser.columns(q)
+    def columns(q:Query[_, PROJECTION, Seq]):Seq[TableColumn] = QueryParser.columns(q)
 
     def namedCells(q:Query[_, PROJECTION, Seq]) =
       columns(q).zip(cells).map{
@@ -21,21 +21,27 @@ trait editables extends namedCells with QueryParserModule {
       }
 
     /* fetches rows from db and renders them using the cells provided in cells() */
-    def rows(ctx: String, pk: Set[String], q: Query[_, PROJECTION, Seq], editable: Boolean, max: Option[Int] = None)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
-      val rows = max.fold(q)(q.take).list
+    def rows[T](ctx:      String,
+                pk:       Set[TableColumn],
+                q:        Query[T, PROJECTION, Seq],
+                editable: Boolean,
+                max:      Option[Int] = None)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
+
+      val rows  = max.fold(q)(n => q.take(n)).list
       val named = namedCells(q)
 
-      rows.map {
-        row =>
-          named.zip(list(row)).map {
-            case (cell, value) =>
-              if (pk(cell.name)) cell.link(ctx, value)
-              else if (editable) cell.editable(value)
-              else               cell.fixed(value)
-          }
+      rows.map { row =>
+        named.zip(list(row)).map {
+          case (cell, value) =>
+            if (pk(cell.name)) cell.link(ctx, value)
+            else if (editable) cell.editable(value)
+            else               cell.fixed(value)
+        }
       }
     }
 
+    /* uses reflection to find all slick columns for a table, and then inspect the AST
+     *  to find the one we want to update */
     def columnForCell[TABLE: ClassTag](table:TABLE, cell: NamedCell): Column[Any] = {
       import scala.reflect.runtime.universe._
 
@@ -49,14 +55,11 @@ trait editables extends namedCells with QueryParserModule {
       val appliedMethods = methods.map(m => reflected.reflectMethod(m).apply())
       val allColumns     = appliedMethods.map(_.asInstanceOf[Column[Any]]).toArray
 
-      def ignoreTableName(s: String) = {
-        val i = s.lastIndexOf(".")
-        if (i == -1 ) s else s.substring(i + 1)
-      }
+      val Column = cell.name.c
 
       allColumns.map(n => (n, n.toNode)).collectFirst{
-        case (n, slick.ast.Select(_, slick.ast.FieldSymbol(name))) if name == ignoreTableName(cell.name) => n
-        case (n, slick.ast.OptionApply(slick.ast.Select(_, slick.ast.FieldSymbol(name)))) if name == ignoreTableName(cell.name) => n
+        case (n,                       QueryParser.NamedColumn(Column))  => n
+        case (n, slick.ast.OptionApply(QueryParser.NamedColumn(Column))) => n
       }.get
     }
 
@@ -68,9 +71,9 @@ trait editables extends namedCells with QueryParserModule {
       val namedCellsForQuery: Seq[NamedCell] = namedCells(q)
 
       def namedCellForKey(key: String): Try[NamedCell] = {
-        namedCellsForQuery.find(_.name == key) match {
+        namedCellsForQuery.find(_.name.columnName == key) match {
           case Some(cell) => Success(cell)
-          case None => Failure(new RuntimeException(s"table ${QueryParser.tablenameFrom(q)} does not have a column $key"))
+          case None       => Failure(new RuntimeException(s"table ${QueryParser.tablenameFrom(q)} does not have a column $key"))
         }
       }
 
@@ -93,5 +96,4 @@ trait editables extends namedCells with QueryParserModule {
         case (Left(acc),  Failure(saved)) => Left(acc :+ saved)
       }
   }
-
 }

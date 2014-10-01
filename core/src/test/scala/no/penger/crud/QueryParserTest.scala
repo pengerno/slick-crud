@@ -14,6 +14,7 @@ class QueryParserTest
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] => R) = {
     assertResult(shouldEqual, q.selectStatement)(op(q))
   }
+  def tc(t: String, c: String) = TableColumn(TableName(t), ColumnName(c))
 
   test("understand simple columns"){
     class OneTwoThreeT(tag: Tag) extends Table[(Int, Option[Int], Option[Int])](tag, "t") {
@@ -23,7 +24,7 @@ class QueryParserTest
 
       def * = (one, two, three)
     }
-    myAssert(TableQuery[OneTwoThreeT], Seq("t.one", "t.two", "t.three"))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT], Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columns)
   }
 
   test("understand map"){
@@ -34,8 +35,8 @@ class QueryParserTest
 
       def * = (one, two, three)
     }
-    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq("t.two"))(QueryParser.columns)
-    myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq("t.two", "t.three"))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(tc("t", "two")))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq(tc("t", "two"), tc("t", "three")))(QueryParser.columns)
   }
 
   test("understand case class projection"){
@@ -47,7 +48,7 @@ class QueryParserTest
 
       def * = (one, two, three) <> (Strings.tupled, Strings.unapply)
     }
-    myAssert(TableQuery[OneTwoThreeT], Seq("t.one", "t.two", "t.three"))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT], Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columns)
   }
 
   test("understand query"){
@@ -59,7 +60,7 @@ class QueryParserTest
 
       def * = (one, two, three) <> (Strings.tupled, Strings.unapply)
     }
-    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two.asc), Seq("t.one", "t.two", "t.three"))(QueryParser.columns)
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two.asc), Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columns)
   }
 
   test("understand joins"){
@@ -80,9 +81,15 @@ class QueryParserTest
       def three = column[String]("three").?
       def * = (one, two, three)
     }
-    myAssert(TableQuery[OneT].join(TableQuery[TwoT]), Seq("t1.one", "t1.two", "t2.one", "t2.two"))(QueryParser.columns)
-    myAssert(TableQuery[OneT].join(TableQuery[TwoT].map(_.two)), Seq("t1.one", "t1.two", "t2.two"))(QueryParser.columns)
-    myAssert(TableQuery[OneT].join(TableQuery[TwoT].rightJoin(TableQuery[ThreeT].map(_.three))), Seq("t1.one", "t1.two", "t2.one", "t2.two", "t3.three"))(QueryParser.columns)
+
+    myAssert(TableQuery[OneT].join(TableQuery[TwoT]),
+      Seq(tc("t1", "one"), tc("t1", "two"), tc("t2", "one"), tc("t2", "two")))(QueryParser.columns)
+
+    myAssert(TableQuery[OneT].join(TableQuery[TwoT].map(_.two)),
+      Seq(tc("t1", "one"), tc("t1", "two"), tc("t2", "two")))(QueryParser.columns)
+
+    myAssert(TableQuery[OneT].join(TableQuery[TwoT].rightJoin(TableQuery[ThreeT].map(_.three))),
+      Seq(tc("t1", "one"), tc("t1", "two"), tc("t2", "one"), tc("t2", "two"), tc("t3", "three")))(QueryParser.columns)
   }
 
   test("get tablename"){
@@ -92,7 +99,7 @@ class QueryParserTest
     }
 
     val one = QueryParser.tablenameFrom(TableQuery[OneT])
-    assertResult("t1")(one)
+    assertResult(TableName("t1"))(one)
   }
 }
 

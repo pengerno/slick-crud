@@ -3,6 +3,7 @@ package crud
 
 trait QueryParserModule extends db.SlickTransactionBoundary {
   import scala.language.higherKinds
+
   /* aliases */
   final type Query[+E, U, C[_]] = profile.simple.Query[E, U, C]
   final type Q = Query[_, _, Seq]
@@ -30,19 +31,26 @@ trait QueryParserModule extends db.SlickTransactionBoundary {
     }
 
     /* find tablename in a slick ast */
-    object tablenameFrom extends Dfs[String] {
-      override val pred: PartialFunction[Node, String] = {
-        case TableNode(_, tablename, _, _, _) => tablename
+    object tablenameFrom extends Dfs[TableName] {
+      override val pred: PartialFunction[Node, TableName] = {
+        case TableNode(_, tablename, _, _, _) => TableName(tablename)
       }
     }
 
-    object columns extends (Q => Seq[String]) {
-      def apply(q: Q): Seq[String] =
+    object NamedColumn {
+      def unapply(n: Node) = n match {
+        case (Select(_, FieldSymbol(name))) => Some(ColumnName(name))
+        case _ => None
+      }
+    }
+
+    object columns extends (Q => Seq[TableColumn]) {
+      def apply(q: Q): Seq[TableColumn] =
         columnsPerTable(q).flatMap {
-          case (table, columns) => columns.map(table + "." + _)
+          case (table, columns) => columns.map(TableColumn(table, _))
         }.toSeq
 
-      def columnsPerTable(q: Q): Map[String, Seq[String]] =
+      def columnsPerTable(q: Q): Map[TableName, Seq[ColumnName]] =
         joinsFor.get(q.toNode).getOrElse(Seq(q.toNode)).map(
           table => (tablenameFrom(table), columnsFor(pureFor.get(table) getOrElse table))
         ).toMap
@@ -55,16 +63,8 @@ trait QueryParserModule extends db.SlickTransactionBoundary {
       }
 
       /* find names of columns under a given node */
-      object columnsFor extends Dfs[Seq[String]] {
-
-        object NamedColumn {
-          def unapply(n: Node) = n match {
-            case (Select(_, FieldSymbol(name))) => Some(name)
-            case _ => None
-          }
-        }
-
-        override val pred: PartialFunction[Node, Seq[String]] = {
+      object columnsFor extends Dfs[Seq[ColumnName]] {
+        override val pred: PartialFunction[Node, Seq[ColumnName]] = {
           /* more than one column selected */
           case ProductNode(cs) => cs map {
             /* normal column */
@@ -87,6 +87,6 @@ trait QueryParserModule extends db.SlickTransactionBoundary {
       }
     }
 
-    def primaryKeys(q: Q): Set[String] = columns(q).toSet
+    def primaryKeys(q: Q): Set[TableColumn] = columns(q).toSet
   }
 }

@@ -54,15 +54,14 @@ trait editors extends editables with view[NodeSeq] {
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(onlyOne = true)
 
-    /* returns a set with the column names of all primary keys */
-    lazy val pks: Set[String] = QueryParser.primaryKeys(query.map(key))
+    val pks: Set[TableColumn] = QueryParser.primaryKeys(query.map(key))
 
     /* name of table */
-    lazy val tablename: String = QueryParser.tablenameFrom(query)
+    val tablename: TableName = QueryParser.tablenameFrom(query)
 
     val MountedAt = Seg.unapply(mount).get
 
-    def base(ctx: String) = (ctx:: MountedAt).mkString("/")
+    def base(ctx: String) = (ctx :: MountedAt).mkString("/")
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     lazy val uniqueId = tablename+UUID.randomUUID().toString.filter(_.isLetterOrDigit)

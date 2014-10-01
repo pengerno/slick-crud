@@ -16,10 +16,10 @@ trait namedCells extends cells {
     def fixed(value: Any):             xml.NodeSeq
     def editable(value: Any):          xml.NodeSeq
     def link(ctx: String, value: Any): xml.NodeSeq
-    def name:                          String
+    def name:                          TableColumn
   }
 
-  def NamedCell(nme: String, cell: Cell[_]):NamedCell = new NamedCell {
+  def NamedCell(nme: TableColumn, cell: Cell[_]):NamedCell = new NamedCell {
     def tryCast(s: String): Try[Any]   = cell.tryCast(s)
     def fixed(value: Any)              = cell.asInstanceOf[Cell[Any]].fixed(value)
     def editable(value: Any)           = cell.asInstanceOf[Cell[Any]].editable(value)
