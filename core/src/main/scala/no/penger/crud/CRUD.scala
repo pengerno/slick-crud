@@ -1,9 +1,9 @@
-package no.penger.crud
+package no.penger
+package crud
 
 import java.util.UUID
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
-import no.penger.db.SlickTransactionBoundary
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.request._
@@ -14,7 +14,7 @@ import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 import scala.xml.NodeSeq
 
-trait CRUD extends SlickTransactionBoundary {
+trait CRUD extends QueryParserModule with db.SlickTransactionBoundary {
   import profile.simple._
 
   def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any]
@@ -30,16 +30,18 @@ trait CRUD extends SlickTransactionBoundary {
    * @tparam PROJ the type of the projection of a table, for example (Int, String)
    */
   def Editor[TABLE : ClassTag, ID: Cell : BaseColumnType, PROJ: Editable]
-    (query:  Query[TABLE, PROJ, Seq],
-     mount:  String)
-    (key:    TABLE => Column[ID]) =
-    new Ed[TABLE, ID, PROJ](query, mount, key, Nil, false)
+    (query:     Query[TABLE, PROJ, Seq],
+     mount:     String,
+     editable:  Boolean = true)
+    (key:       TABLE => Column[ID]) =
+    new Ed[TABLE, ID, PROJ](query, mount, key, Nil, editable, onlyOne = false)
 
   case class Ed[TABLE : ClassTag, ID: Cell : BaseColumnType, L: Editable](
       query:   Query[TABLE, L, Seq],
       mount:   String,
       key:     TABLE  => Column[ID],
       editors: Seq[ID => Ed[_, _, _]],
+      editable: Boolean,
       onlyOne: Boolean
     ) extends LazyLogging {
 
@@ -57,10 +59,10 @@ trait CRUD extends SlickTransactionBoundary {
     def single = copy(onlyOne = true)
 
     /* returns a set with the column names of all primary keys */
-    lazy val pks: Set[String] = QueryParser.columns(query.map(key)).toSet
+    lazy val pks: Set[String] = QueryParser.primaryKeys(query.map(key))
 
     /* name of table */
-    lazy val tableName: String = QueryParser.tableName(query)
+    lazy val tableName: String = QueryParser.tablenameFrom(query)
 
     lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
@@ -99,7 +101,7 @@ trait CRUD extends SlickTransactionBoundary {
 
     def viewsingle(base:String, id:ID)(implicit s:Session) = {
       val selectQuery = query.filter(key(_) === id.bind)
-      val rowOpt      = editor.rows((base:: path).mkString("/"), pks, selectQuery).headOption
+      val rowOpt      = editor.rows((base:: path).mkString("/"), pks, selectQuery, editable).headOption
 
       <div>
         <h2>{tableName}</h2>
@@ -116,7 +118,7 @@ trait CRUD extends SlickTransactionBoundary {
     }
 
     def view(base:String)(implicit tx: Session) = {
-      val rows = editor.rows((base :: path).mkString("/"), pks, query)
+      val rows = editor.rows((base :: path).mkString("/"), pks, query, editable)
       <div>
         <h2>{tableName}</h2>{
         if(onlyOne)
@@ -153,13 +155,13 @@ trait CRUD extends SlickTransactionBoundary {
 
     def cells:List[Cell[_]]
     def list(e:PROJECTION):List[Any]
-    def columns(q:Query[_, PROJECTION, Seq]):List[String] = QueryParser.columns(q).toList
+    def columns(q:Query[_, PROJECTION, Seq]):Seq[String] = QueryParser.columns(q)
 
     def namedCells(q:Query[_, PROJECTION, Seq]) =
       columns(q).zip(cells).map{ case (cell, column) => NamedCell(cell, column) }
 
     /* fetches rows from db and renders them using the cells provided in cells() */
-    def rows(base:String, pk:Set[String], q:Query[_, PROJECTION, Seq])(implicit tx: Session): List[Seq[NodeSeq]] = {
+    def rows(base:String, pk:Set[String], q:Query[_, PROJECTION, Seq], editable: Boolean)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
       val rows = q.list
       val named = namedCells(q)
 
@@ -168,7 +170,8 @@ trait CRUD extends SlickTransactionBoundary {
           named.zip(list(row)).map {
             case (cell, value) =>
               if (pk(cell.name)) cell.link(base, value)
-              else cell.editable(value)
+              else if (editable) cell.editable(value)
+              else               cell.fixed(value)
           }
       }
     }
@@ -186,9 +189,14 @@ trait CRUD extends SlickTransactionBoundary {
       val appliedMethods = methods.map(m => reflected.reflectMethod(m).apply())
       val allColumns     = appliedMethods.map(_.asInstanceOf[Column[Any]]).toArray
 
+      def ignoreTableName(s: String) = {
+        val i = s.lastIndexOf(".")
+        if (i == -1 ) s else s.substring(i + 1)
+      }
+
       allColumns.map(n => (n, n.toNode)).collectFirst{
-        case (n, slick.ast.Select(_, slick.ast.FieldSymbol(name))) if name == cell.name => n
-        case (n, slick.ast.OptionApply(slick.ast.Select(_, slick.ast.FieldSymbol(name)))) if name == cell.name => n
+        case (n, slick.ast.Select(_, slick.ast.FieldSymbol(name))) if name == ignoreTableName(cell.name) => n
+        case (n, slick.ast.OptionApply(slick.ast.Select(_, slick.ast.FieldSymbol(name)))) if name == ignoreTableName(cell.name) => n
       }.get
     }
 
@@ -197,12 +205,12 @@ trait CRUD extends SlickTransactionBoundary {
             (implicit s:      Session,
                       c:      ClassTag[TABLE]): Either[Seq[Throwable], Int] = {
 
-      val namedCellsForQuery: List[NamedCell] = namedCells(q)
+      val namedCellsForQuery: Seq[NamedCell] = namedCells(q)
 
       def namedCellForKey(key: String): Try[NamedCell] = {
         namedCellsForQuery.find(_.name == key) match {
           case Some(cell) => Success(cell)
-          case None => Failure(new RuntimeException(s"table ${QueryParser.tableName(q)} does not have a column $key"))
+          case None => Failure(new RuntimeException(s"table ${QueryParser.tablenameFrom(q)} does not have a column $key"))
         }
       }
 
@@ -220,35 +228,10 @@ trait CRUD extends SlickTransactionBoundary {
     def sequence(result: Iterable[Try[Int]]): Either[Seq[Throwable], Int] =
       result.foldLeft[Either[Seq[Throwable], Int]](Right(0)){
         case (Right(acc), Success(saved)) => Right(acc + saved)
+        case (Right(_),   Failure(why))   => Left(Seq(why))
+        case (Left(acc),  Success(_))     => Left(acc)
         case (Left(acc),  Failure(saved)) => Left(acc :+ saved)
-        case (left,       Success(_))     => left
-        case (_,          Failure(why))   => Left(Seq(why))
       }
-  }
-
-  /**
-   * Somewhat lazy, but this was the easiest way to find column names for query without diving into the data structures.
-   * Strictly supports query from one table
-   */
-  object QueryParser{
-    val Cols          = """select (.*) from.*""".r
-    val Colname       = """.+\."?(\w+)"?.*""".r
-    val Tablename     = """.*from "?(\w+)"?.*""".r
-
-    def columns(q: Query[_, _, Seq]): Seq[String] = columns(q.selectStatement)
-
-    def columns(selectStatement: String): Seq[String] =
-      selectStatement match {
-        case Cols(cols) => cols.split(",").map(_.trim).filterNot(_.isEmpty).map{
-          case Colname(name) => name
-        }
-      }
-
-    def tableName(q: Query[_, _, Seq]): String = tableName(q.selectStatement)
-
-    def tableName(selectStatement: String): String = selectStatement match {
-      case Tablename(name) => name
-    }
   }
 
   /**
@@ -256,26 +239,29 @@ trait CRUD extends SlickTransactionBoundary {
    * link(), editable() and fixed() provides three different ways to render,
    * while cast() parses a string back to the given type so it can be persisted.
    */
-  abstract class Cell[E: ClassTag]{
+  abstract class Cell[E] {
     def link(base:String, e:E): NodeSeq
     def editable(e:E): NodeSeq
     def fixed(e:E): NodeSeq
-    protected def cast(value: String): E
+    def tryCast(value:String): Try[E]
+  }
 
-    def tryCast(value:String): Try[E] =
+  /* provides homogenous error handling for simple types */
+  abstract class ValueCell[E: ClassTag] extends Cell[E] {
+    final def tryCast(value:String): Try[E] =
       Try(cast(value)) match {
         case Failure(f) => Failure(new RuntimeException(s"$value is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
-        case success => success
+        case success    => success
       }
+    protected def cast(value: String): E
   }
 
   object Cell {
-
     /* use this constructor for easy cell creation if you dont need to customize rendering or error messages */
     def apply[T: ClassTag](from:      T => String,
                            to:        String => T,
                            canEdit:   Boolean      = true,
-                           alignment: String       = "right") = new Cell[T]{
+                           alignment: String       = "right") = new ValueCell[T]{
       def link(base: String, e: T)      = <td align={alignment}><a href={base + "/" + from(e)}>{from(e)}</a></td>
       def editable(e: T)                = <td contenteditable={canEdit.toString} align={alignment}>{from(e)}</td>
       def fixed(e: T)                   = <td align="right">{from(e)}</td>
@@ -283,7 +269,7 @@ trait CRUD extends SlickTransactionBoundary {
     }
 
     /* implicitly provide handling of optional values*/
-    implicit def optionCell[A: Cell: ClassTag] = new Cell[Option[A]] {
+    implicit def optionCell[A: Cell]: Cell[Option[A]] = new Cell[Option[A]] {
       val cell = implicitly[Cell[A]]
 
       def link(base: String, e: Option[A]) =
@@ -295,20 +281,16 @@ trait CRUD extends SlickTransactionBoundary {
       def fixed(e: Option[A]) =
         e.map(cell.fixed).getOrElse(<td align="right"></td>)
 
-      override protected def cast(value: String) = ???
-
-      override def tryCast(value: String): Try[Option[A]] = {
-        val v = value.trim
-        if (v.isEmpty) Success(None) else cell.tryCast(value).map(Some(_))
+      def tryCast(value: String): Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
+        case Some(v) => cell.tryCast(value).map(Some(_))
+        case None    => Success(None)
       }
     }
 
     /* provided because of custom rendering */
-    implicit val boolean = new Cell[Boolean] {
-      import scala.xml._
-
-      private def checked(elem: Elem, checked: Boolean) =
-        if (checked) elem % Attribute("checked", Seq(Text("checked")), xml.Null) else elem
+    implicit val boolean = new ValueCell[Boolean] {
+      private def checked(elem: xml.Elem, checked: Boolean) =
+        if (checked) elem % xml.Attribute("checked", Seq(xml.Text("checked")), xml.Null) else elem
 
       def link(base: String, e: Boolean) = fixed(e)
       def editable(e: Boolean)           = <td>{checked(<input type="checkbox"/>, e)}</td>
