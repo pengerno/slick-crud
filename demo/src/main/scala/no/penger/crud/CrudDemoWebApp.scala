@@ -84,14 +84,11 @@ trait StoreCrudPlan extends StoreTables with CrudInstances {
 
     /**
      * These editable-instances are necessary for now in order to expose
-     *  tables that have default projections to a case class.
-     *
-     *  CrudInstances can provide Editables for every tuple, but we need
-     *   to give directions for how to further map that tuple to
+     *  tables that have default projections to a case class for example.
      */
-    implicit val e1 = mappedEditable[Employee, (EmployeeId, Name, StoreId)]
-    implicit val e2 = mappedEditable[Product, (ProductId, Name, Int, StoreId)]
-    implicit val e3 = mappedEditable[Store, (StoreId, Name, Option[Desc])]
+    implicit val e1 = mappedEditable(Employee.unapply)
+    implicit val e2 = mappedEditable(Product.unapply)
+    implicit val e3 = mappedEditable(Store.unapply)
 
     private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees")(key = _.id)
     private lazy val products = Editor(Products, "/products")(key = _.id)

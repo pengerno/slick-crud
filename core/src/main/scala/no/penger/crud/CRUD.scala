@@ -271,8 +271,6 @@ trait CRUD extends SlickTransactionBoundary {
 
   object Cell {
 
-    def from[A: Cell]: Cell[A] = implicitly[Cell[A]]
-
     /* use this constructor for easy cell creation if you dont need to customize rendering or error messages */
     def apply[T: ClassTag](from:      T => String,
                            to:        String => T,

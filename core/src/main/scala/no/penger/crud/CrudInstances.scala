@@ -4,7 +4,6 @@ trait CrudInstances extends CRUD {
 
   /**
    * This trait is used to provide support for tuples out of the box.
-   *
    */
   trait ProductEditable[P <: Product] extends Editable[P] {
     def list(e: P): List[Any] = e.productIterator.toList
@@ -12,15 +11,15 @@ trait CrudInstances extends CRUD {
 
   /**
    * Use this to use tables mapped to a non-tuple structure.
-   *
-   * TODO: is there a way this can be provided automatically? shapeless?
-   * */
-   def mappedEditable[Mapped <: Product, Tupled: Editable]: Editable[Mapped] = new ProductEditable[Mapped]{
-    private val wrapped = implicitly[Editable[Tupled]]
-    override def cells = wrapped.cells
-  }
+   **/
+  def mappedEditable[Mapped, Tupled <: Product : Editable](unapply: Mapped => Option[Tupled]) =
+    new Editable[Mapped] {
+      private val wrapped          = implicitly[Editable[Tupled]]
+      override def list(e: Mapped) = wrapped.list(unapply(e).get)
+      override def cells           = wrapped.cells
+    }
 
-  import Cell.{from => c}
+  private def c[A: Cell]: Cell[A] = implicitly[Cell[A]]
 
   implicit def tuple2[A1: Cell, A2: Cell] =
     new ProductEditable[(A1, A2)] {
