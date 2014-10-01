@@ -103,7 +103,8 @@ FINN.pf.crud.send = function(url, data, undo){
         success:function(){
             console.debug('success');
         },
-        error:function(){
+        error:function(error){
+            alert(error.responseText);
             undo();
         }
     });
