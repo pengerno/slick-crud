@@ -21,8 +21,8 @@ trait editables extends namedCells with QueryParserModule {
       }
 
     /* fetches rows from db and renders them using the cells provided in cells() */
-    def rows(ctx: String, pk: Set[String], q: Query[_, PROJECTION, Seq], editable: Boolean)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
-      val rows = q.list
+    def rows(ctx: String, pk: Set[String], q: Query[_, PROJECTION, Seq], editable: Boolean, max: Option[Int] = None)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
+      val rows = max.fold(q)(q.take).list
       val named = namedCells(q)
 
       rows.map {

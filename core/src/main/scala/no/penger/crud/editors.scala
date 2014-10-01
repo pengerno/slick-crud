@@ -58,14 +58,14 @@ trait editors extends editables with view[NodeSeq] {
     lazy val pks: Set[String] = QueryParser.primaryKeys(query.map(key))
 
     /* name of table */
-    lazy val tableName: String = QueryParser.tablenameFrom(query)
+    lazy val tablename: String = QueryParser.tablenameFrom(query)
 
     val MountedAt = Seg.unapply(mount).get
 
     def base(ctx: String) = (ctx:: MountedAt).mkString("/")
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
-    lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
+    lazy val uniqueId = tablename+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
     object Id {
       def unapply(parts:List[String]) =
@@ -92,29 +92,31 @@ trait editors extends editables with view[NodeSeq] {
     }
 
     def view(ctx: String)(implicit tx: Session): NodeSeq = {
-      val rows: Seq[Seq[NodeSeq]] = editor.rows(base(ctx), pks, query, editable)
+      val rows        = editor.rows(base(ctx), pks, query, editable, max = Some(1).filter(_ => onlyOne))
+      val columnNames = editor.columns(query)
 
       if (onlyOne)
-        newEditor(base(ctx), uniqueId, tableName).rowOpt(None, rows.headOption, editor.columns(query))
+        newEditor(base(ctx), uniqueId, tablename).rowOpt(None, rows.headOption, columnNames)
       else
-        newEditor(base(ctx), uniqueId, tableName).many(rows, editor.columns(query))
+        newEditor(base(ctx), uniqueId, tablename).many(rows, columnNames)
     }
 
     def viewSingle(ctx: String, id:ID)(implicit s:Session): NodeSeq = {
       val selectQuery = query.filter(key(_) === id.bind)
-      val rowOpt      = editor.rows(base(ctx), pks, selectQuery, editable).headOption
-
-      newEditor(base(ctx), uniqueId, tableName).rowOpt(Some(id).map(_.toString), rowOpt, editor.columns(selectQuery))
+      val rowOpt      = editor.rows(base(ctx), pks, selectQuery, editable, max = Some(1)).headOption
+      val columnNames = editor.columns(selectQuery)
+      
+      newEditor(base(ctx), uniqueId, tablename).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
     }
 
     def update(i:ID, params:Map[String, Seq[String]])(implicit tx: Session) =
       editor.update(params, query.filter(key(_) === i)) match {
         case Left(fails) =>
           tx.rollback()
-          logger.warn(s"could not update ${this.tableName} with data $params: $fails")
+          logger.warn(s"could not update ${this.tablename} with data $params: $fails")
           BadRequest ~> ResponseString(fails.mkString("\n"))
         case Right(updates) =>
-          logger.info(s"updated $updates rows for table ${this.tableName} for id $i with values $params")
+          logger.info(s"updated $updates rows for table ${this.tablename} for id $i with values $params")
           Ok ~> ResponseString(updates + " rows updated")
       }
   }
