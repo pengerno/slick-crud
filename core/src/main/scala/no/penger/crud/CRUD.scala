@@ -20,42 +20,37 @@ trait CRUD extends SlickTransactionBoundary {
   /**
    * this is the main entry point, use this to expose database tables.
    *
-   * @param table the table to be exposed for manipulation
    * @param mount the url through which the exposed table can be reached
    * @param query a function that maps a table query TQ to a query
    * @param key a function that maps a projection L to its id column to be used for updating one row
-   * @tparam TQ slicks TableQuery
-   * @tparam COLS the type of the lifted projection of a table, for example (Column[Int], Column[String])
+   * @tparam LPROJ the type of the lifted projection of a table, for example (Column[Int], Column[String])
    * @tparam ID the type of the primary key column
-   * @tparam L the type of the (not case class) projection of a table, for example (Int, String)
+   * @tparam PROJ the type of the (not case class) projection of a table, for example (Int, String)
    * @return
    */
-  def Editor[TQ <: TableQuery[_], COLS : ClassTag, ID: Cell : BaseColumnType, L: Editable]
-    (table:  TQ,
+  def Editor[LPROJ : ClassTag, ID: Cell : BaseColumnType, PROJ: Editable]
+    (query:  Query[LPROJ, PROJ, Seq],
      mount:  String)
-    (query:  TQ      => Query[COLS, L, Seq])
-    (key:    COLS    => Column[ID]) =
-    new Ed[TQ, COLS, ID, L](table, mount, key, Nil, false, query(table))
+    (key:    LPROJ => Column[ID]) =
+    new Ed[LPROJ, ID, PROJ](query, mount, key, Nil, false)
 
-
-  case class Ed[TQ <: TableQuery[_], COLS : ClassTag, ID: Cell : BaseColumnType, L: Editable](
-      table:   TQ,
+  case class Ed[TABLE : ClassTag, ID: Cell : BaseColumnType, L: Editable](
+      query:   Query[TABLE, L, Seq],
       mount:   String,
-      key:     COLS => Column[ID],
-      editors: Seq[ID => Ed[_, _, _, _]],
-      onlyOne: Boolean,
-      query:   Query[COLS, L, Seq]
+      key:     TABLE  => Column[ID],
+      editors: Seq[ID => Ed[_, _, _]],
+      onlyOne: Boolean
     ) extends LazyLogging {
 
     val editor   = implicitly[Editable[L]]
     val idCell   = implicitly[Cell[ID]]
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
-    def on[X : BaseColumnType](f:COLS => Column[X]) = (x:X) =>
+    def on[X : BaseColumnType](f:TABLE => Column[X]) = (x:X) =>
       copy(query = query.filter(f(_) === x))
 
     /* return a new editor that also exposes other editors referenced via their primary key */
-    def sub(editors:(ID => Ed[_, _, _, _])*) = copy(editors = editors)
+    def sub(editors:(ID => Ed[_, _, _])*) = copy(editors = editors)
 
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(onlyOne = true)
@@ -177,7 +172,7 @@ trait CRUD extends SlickTransactionBoundary {
       }
     }
 
-    def columnForCell[COLS: ClassTag](table:COLS, cell: NamedCell): Column[Any] = {
+    def columnForCell[TABLE: ClassTag](table:TABLE, cell: NamedCell): Column[Any] = {
       import scala.reflect.runtime.universe._
 
       val mirror    = runtimeMirror(this.getClass.getClassLoader)
@@ -195,10 +190,10 @@ trait CRUD extends SlickTransactionBoundary {
       }.get
     }
 
-    def update[COLS](params: Map[String, Seq[String]],
-                     q:      Query[COLS, PROJECTION, Seq])
+    def update[TABLE](params: Map[String, Seq[String]],
+                     q:      Query[TABLE, PROJECTION, Seq])
            (implicit s:      Session,
-                     c:      ClassTag[COLS]): Either[Seq[Throwable], Int] = {
+                     c:      ClassTag[TABLE]): Either[Seq[Throwable], Int] = {
 
       val namedCellsForQuery: List[NamedCell] = namedCells(q)
 

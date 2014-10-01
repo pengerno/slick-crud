@@ -77,10 +77,10 @@ trait StoreCrudPlan extends StoreTables with CrudInstances {
   implicit val e2 = mappedEditable[Product,  (ProductId,  Name, Int, StoreId)]
   implicit val e3 = mappedEditable[Store,    (StoreId,    Name, Option[Desc])]
 
-  private lazy val employees = Editor(Employees, "/employees")(identity)(key = _.id)
-  private lazy val products  = Editor(Products, "/products")(identity)(key = _.id)
+  private lazy val employees = Editor(Employees, "/employees")(key = _.id)
+  private lazy val products  = Editor(Products, "/products")(key = _.id)
 
-  private lazy val stores    = Editor(Stores, "/stores")(identity)(key = _.id).sub(
+  private lazy val stores    = Editor(Stores, "/stores")(key = _.id).sub(
     employees.on(_.worksAtRef),
     products.on(_.soldByRef)
     //todo: single something
