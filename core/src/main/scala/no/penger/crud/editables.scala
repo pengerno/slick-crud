@@ -21,7 +21,7 @@ trait editables extends namedCells with QueryParserModule {
       }
 
     /* fetches rows from db and renders them using the cells provided in cells() */
-    def rows(base:String, pk:Set[String], q:Query[_, PROJECTION, Seq], editable: Boolean)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
+    def rows(ctx: String, pk: Set[String], q: Query[_, PROJECTION, Seq], editable: Boolean)(implicit tx: Session): Seq[Seq[NodeSeq]] = {
       val rows = q.list
       val named = namedCells(q)
 
@@ -29,7 +29,7 @@ trait editables extends namedCells with QueryParserModule {
         row =>
           named.zip(list(row)).map {
             case (cell, value) =>
-              if (pk(cell.name)) cell.link(base, value)
+              if (pk(cell.name)) cell.link(ctx, value)
               else if (editable) cell.editable(value)
               else               cell.fixed(value)
           }

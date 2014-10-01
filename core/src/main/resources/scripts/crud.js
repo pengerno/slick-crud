@@ -100,8 +100,8 @@ no.penger.crud.send = function(url, data, undo){
         url: url,
         type: 'post',
         data: $.param(data),
-        success:function(){
-            console.debug('success');
+        success:function(msg){
+            console.debug('success' + msg);
         },
         error:function(error){
             alert(error.responseText);

@@ -10,10 +10,10 @@ import scala.util.{Success, Failure, Try}
  */
 trait cells {
   abstract class Cell[E] {
-    def link(base:String, e:E): xml.NodeSeq
-    def editable(e:E): xml.NodeSeq
-    def fixed(e:E): xml.NodeSeq
-    def tryCast(value:String): Try[E]
+    def link(ctx: String, e:E): xml.NodeSeq
+    def editable(e: E):         xml.NodeSeq
+    def fixed(e: E):            xml.NodeSeq
+    def tryCast(value: String): Try[E]
   }
 
   /* homogeneous error handling for simple types */
@@ -31,8 +31,8 @@ trait cells {
     implicit def optionCell[A: Cell]: Cell[Option[A]] = new Cell[Option[A]] {
       val cell = implicitly[Cell[A]]
 
-      def link(base: String, e: Option[A]) =
-        e.map(v => cell.link(base, v)).getOrElse(fixed(e))
+      def link(ctx: String, e: Option[A]) =
+        e.map(v => cell.link(ctx, v)).getOrElse(fixed(e))
 
       def editable(e: Option[A]) =
         e.map(cell.editable).getOrElse(<td contenteditable="true" align="right"></td>)
@@ -51,7 +51,7 @@ trait cells {
                            to:        String => T,
                            canEdit:   Boolean      = true,
                            alignment: String       = "right") = new ValueCell[T]{
-      def link(base: String, e: T)      = <td align={alignment}><a href={base + "/" + from(e)}>{from(e)}</a></td>
+      def link(ctx: String, e: T)       = <td align={alignment}><a href={ctx + "/" + from(e)}>{from(e)}</a></td>
       def editable(e: T)                = <td contenteditable={canEdit.toString} align={alignment}>{from(e)}</td>
       def fixed(e: T)                   = <td align={alignment}>{from(e)}</td>
       protected def cast(value: String) = to(value)

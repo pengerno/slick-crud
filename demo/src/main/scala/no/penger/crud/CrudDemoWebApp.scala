@@ -1,6 +1,8 @@
 package no.penger
 package crud
 
+import javax.servlet.http.HttpServletRequest
+
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
@@ -111,8 +113,8 @@ trait StoreCrudPlan extends StoreTables with Crud {
     val intent = employees.intent orElse products.intent orElse stores.intent orElse resourceIntent
   }
 
-  override def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq) =
-    Html5(PageTemplate.page(ctx, title)(body))
+  override def presentPage[T <: HttpServletRequest](req: HttpRequest[T], title: String)(body: NodeSeq) =
+    Html5(PageTemplate(req).page(title)(body))
 }
 
 object CrudDemoWebApp

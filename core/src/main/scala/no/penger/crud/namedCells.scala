@@ -12,19 +12,18 @@ import scala.util.Try
  */
 trait namedCells extends cells {
   trait NamedCell {
-    def tryCast(s:String): Try[Any]
-    def fixed(value:Any): xml.NodeSeq
-    def editable(value:Any): xml.NodeSeq
-    def link(base:String, value:Any): xml.NodeSeq
-    def name:String
+    def tryCast(s: String):            Try[Any]
+    def fixed(value: Any):             xml.NodeSeq
+    def editable(value: Any):          xml.NodeSeq
+    def link(ctx: String, value: Any): xml.NodeSeq
+    def name:                          String
   }
 
   def NamedCell(nme: String, cell: Cell[_]):NamedCell = new NamedCell {
     def tryCast(s: String): Try[Any]   = cell.tryCast(s)
     def fixed(value: Any)              = cell.asInstanceOf[Cell[Any]].fixed(value)
     def editable(value: Any)           = cell.asInstanceOf[Cell[Any]].editable(value)
-    def link(base: String, value: Any) = cell.asInstanceOf[Cell[Any]].link(base, value)
+    def link(ctx: String, value: Any)  = cell.asInstanceOf[Cell[Any]].link(ctx, value)
     def name                           = nme
   }
-
 }

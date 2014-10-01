@@ -1,13 +1,23 @@
 package no.penger.crud
 
-object PageTemplate {
+import javax.servlet.http.HttpServletRequest
+
+import unfiltered.filter.request.ContextPath
+import unfiltered.request.HttpRequest
+
+case class PageTemplate[T <: HttpServletRequest](req: HttpRequest[T]) {
+
+  val ctx = req match {
+    case ContextPath(c, _) => c
+  }
+
   def javascript(ctx: String, path: String) =
     <script src={ctx + path} type="text/javascript"> </script>
 
   def css(ctx: String, path: String) =
     <link href={ctx + path} rel="stylesheet"/>
   
-  def page(ctx: String, title: String)(body: xml.NodeSeq) =
+  def page(title: String)(body: xml.NodeSeq) =
     <html>
       <head>
         <title>{title}</title>

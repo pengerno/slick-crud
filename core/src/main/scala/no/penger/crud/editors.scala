@@ -2,20 +2,19 @@ package no.penger
 package crud
 
 import java.util.UUID
+import javax.servlet.http.HttpServletRequest
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
-import unfiltered.request.{&, GET, HttpRequest, POST, Params, Seg}
-import unfiltered.response.{BadRequest, Ok, ResponseFunction, ResponseString}
+import unfiltered.request.{HttpRequest, &, GET, POST, Params, Seg}
+import unfiltered.response.{BadRequest, Ok, ResponseString}
 
 import scala.reflect.ClassTag
-import scala.xml.NodeSeq
+import scala.xml.{Elem, NodeSeq}
 
-trait editors extends editables {
+trait editors extends editables with view {
   import profile.simple._
-
-  def presentPage[T](req: HttpRequest[T], ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any]
 
   object Editor{
     /**
@@ -48,8 +47,7 @@ trait editors extends editables {
     val idCell = implicitly[Cell[ID]]
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
-    def on[X : BaseColumnType](f:TABLE => Column[X]) = (x:X) =>
-      copy(query = query.filter(f(_) === x))
+    def on[X : BaseColumnType](f:TABLE => Column[X]) = (x:X) => copy(query = query.filter(f(_) === x))
 
     /* return a new editor that also exposes other editors referenced via their primary key */
     def sub(editors:(ID => Editor[_, _, _])*) = copy(editors = editors)
@@ -63,33 +61,29 @@ trait editors extends editables {
     /* name of table */
     lazy val tableName: String = QueryParser.tablenameFrom(query)
 
-    lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
+    val MountedAt = Seg.unapply(mount).get
+    
+    def ctxPath[T <: HttpServletRequest](req: HttpRequest[T]) = ContextPath.unapply(req).map(_._1).get
 
-    case class script(ctx:String) {
-      def single = <script type="text/javascript">no.penger.crud.single('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
-      def view   = <script type="text/javascript">no.penger.crud.view('{(ctx :: path).mkString("/")}', '#{uniqueId}')</script>
-    }
+    /* generate a random id for the table we render, for frontend to distinguish multiple tables */
+    lazy val uniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
     object Id {
       def unapply(parts:List[String]) =
-        parts.splitAt(path.size) match {
-          case (`path`, id :: Nil) => idCell.tryCast(id).toOption.map(i => (path, i))
+        parts.splitAt(MountedAt.size) match {
+          case (MountedAt, id :: Nil) => idCell.tryCast(id).toOption.map(i => (MountedAt, i))
           case _ => None
         }
     }
 
-    val path = Seg.unapply(mount).get
-
     def intent:Plan.Intent = {
-      case req@GET(ContextPath(ctx, Seg(`path`))) => transaction.readOnly{ implicit tx =>
-        presentPage(req, ctx, path.head){
-          view(ctx)
-        }
+      case req@GET(ContextPath(_, Seg(MountedAt))) => transaction.readOnly{ implicit tx =>
+        presentPage(req, title = MountedAt.head){ view(req)}
       }
 
-      case req@GET(ContextPath(ctx, Seg(Id(p, id)))) => transaction.readOnly{ implicit tx =>
-        presentPage(req, ctx, s"${p.head} for $id"){
-          viewsingle(ctx, id) ++ editors.flatMap(_(id).view(ctx))
+      case req@GET(ContextPath(_, Seg(Id(p, id)))) => transaction.readOnly{ implicit tx =>
+        presentPage(req, title = s"${p.head} for $id"){
+          viewSingle(req, id) ++ editors.flatMap(_(id).view(req))
         }
       }
 
@@ -98,43 +92,25 @@ trait editors extends editables {
       }
     }
 
-    def viewsingle(base:String, id:ID)(implicit s:Session) = {
-      val selectQuery = query.filter(key(_) === id.bind)
-      val rowOpt      = editor.rows((base:: path).mkString("/"), pks, selectQuery, editable).headOption
+    def view[T <: HttpServletRequest](req: HttpRequest[T])(implicit tx: Session): Elem = {
+      val rows: Seq[Seq[NodeSeq]] = editor.rows(ctxPath(req), pks, query, editable)
 
-      <div>
-        <h2>{tableName}</h2>
-        {rowOpt.map { row =>
-        script(base).single ++
-          <table id={uniqueId}>
-            <thead><tr><th>Column</th><th>Value</th></tr></thead>
-            {editor.columns(selectQuery).zip(row).map{
-              case (name, value) => <tr><td>{name}</td>{value}</tr>
-            }}
-          </table>
-      }.getOrElse(<h1>{s"Could not find a $tableName for $id"}</h1>)
-        }</div>
+      if (onlyOne)
+        rows.headOption match {
+          case None      => WebIntegration.view404(tableName, None)
+          case Some(row) => WebIntegration.single(ctxPath(req), uniqueId, tableName, editor.columns(query).zip(row))
+        }
+      else WebIntegration.many(ctxPath(req), uniqueId, tableName, rows, editor.columns(query))
     }
 
-    def view(base:String)(implicit tx: Session) = {
-      val rows = editor.rows((base :: path).mkString("/"), pks, query, editable)
-      <div>
-        <h2>{tableName}</h2>{
-        if(onlyOne)
-          rows.headOption.map{ row =>
-            script(base).single ++
-              <table id={uniqueId}>
-                <thead><tr><th>Column</th><th>Value</th></tr></thead>
-                {editor.columns(query).zip(row).map{ case (name, value) => <tr><td>{name}</td>{value}</tr>}}
-              </table>
-          }.getOrElse(<h1>{s"Could not find this $tableName"}</h1>)
-        else
-          script(base).view ++
-            <table id={uniqueId}>
-              <thead><tr>{editor.columns(query).map(name => <th>{name}</th>)}</tr></thead>
-              {rows.map{ row => <tr>{row}</tr>}}
-            </table>}
-      </div>
+    def viewSingle[T <: HttpServletRequest](req: HttpRequest[T], id:ID)(implicit s:Session): Elem = {
+      val selectQuery = query.filter(key(_) === id.bind)
+      val rowOpt      = editor.rows(ctxPath(req), pks, selectQuery, editable).headOption
+      
+      rowOpt match {
+        case None      => WebIntegration.view404(tableName, Some(id.toString))
+        case Some(row) => WebIntegration.single(ctxPath(req), uniqueId, tableName, editor.columns(selectQuery).zip(row))
+      }
     }
 
     def update(i:ID, params:Map[String, Seq[String]])(implicit tx: Session) =
