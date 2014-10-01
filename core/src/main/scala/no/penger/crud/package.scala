@@ -1,6 +1,10 @@
 package no.penger
 
 package object crud {
+  case class Update(column: String, oldValue: Option[Any], newValue: Any, numUpdated: Int)
+
+  case class FailedUpdate(column: String, values: Seq[String], t: Throwable)
+
   case class ColumnName(asString: String) extends AnyVal{
     override def toString: String = asString
   }

@@ -3,7 +3,6 @@ package crud
 
 import java.util.UUID
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.request.{&, GET, POST, Params, Seg}
@@ -12,7 +11,7 @@ import unfiltered.response.{BadRequest, Ok, ResponseString}
 import scala.reflect.ClassTag
 import scala.xml.NodeSeq
 
-trait editors extends editables with view[NodeSeq] {
+trait editors extends editables with view[NodeSeq] with updateNotifier {
   import profile.simple._
 
   object Editor{
@@ -27,20 +26,22 @@ trait editors extends editables with view[NodeSeq] {
      * @tparam PROJ the type of the projection of a table, for example (Int, String)
      */
     def apply[TABLE : ClassTag, ID: Cell : BaseColumnType, PROJ: Editable]
-    (query:     Query[TABLE, PROJ, Seq],
-     mount:     String,
-     editable:  Boolean = true)
-    (key:       TABLE => Column[ID]) = new Editor[TABLE, ID, PROJ](query, mount, key, Nil, editable, onlyOne = false)
+      (query:    Query[TABLE, PROJ, Seq],
+       mount:    String,
+       notifier: UpdateNotifier,
+       editable: Boolean = true)
+      (key:      TABLE => Column[ID]) =
+        new Editor[TABLE, ID, PROJ](query, mount, key, Nil, editable, onlyOne = false, notifier)
   }
 
   case class Editor[TABLE : ClassTag, ID: Cell : BaseColumnType, L: Editable] private (
-      query:   Query[TABLE, L, Seq],
-      mount:   String,
-      key:     TABLE  => Column[ID],
-      editors: Seq[ID => Editor[_, _, _]],
+      query:    Query[TABLE, L, Seq],
+      mount:    String,
+      key:      TABLE  => Column[ID],
+      editors:  Seq[ID => Editor[_, _, _]],
       editable: Boolean,
-      onlyOne: Boolean
-    ) extends LazyLogging {
+      onlyOne:  Boolean,
+      notifier: UpdateNotifier) {
 
     val editor = implicitly[Editable[L]]
     val idCell = implicitly[Cell[ID]]
@@ -66,6 +67,7 @@ trait editors extends editables with view[NodeSeq] {
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     lazy val uniqueId = tablename+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
+    /* extractor to match on the id column */
     object Id {
       def unapply(parts:List[String]) =
         parts.splitAt(MountedAt.size) match {
@@ -95,9 +97,9 @@ trait editors extends editables with view[NodeSeq] {
       val columnNames = editor.columns(query)
 
       if (onlyOne)
-        newEditor(base(ctx), uniqueId, tablename).rowOpt(None, rows.headOption, columnNames)
+        newView(base(ctx), uniqueId, tablename).rowOpt(None, rows.headOption, columnNames)
       else
-        newEditor(base(ctx), uniqueId, tablename).many(rows, columnNames)
+        newView(base(ctx), uniqueId, tablename).many(rows, columnNames)
     }
 
     def viewSingle(ctx: String, id:ID)(implicit s:Session): NodeSeq = {
@@ -105,17 +107,17 @@ trait editors extends editables with view[NodeSeq] {
       val rowOpt      = editor.rows(base(ctx), pks, selectQuery, editable, max = Some(1)).headOption
       val columnNames = editor.columns(selectQuery)
       
-      newEditor(base(ctx), uniqueId, tablename).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
+      newView(base(ctx), uniqueId, tablename).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
     }
 
-    def update(i:ID, params:Map[String, Seq[String]])(implicit tx: Session) =
-      editor.update(params, query.filter(key(_) === i)) match {
-        case Left(fails) =>
+    def update(id: ID, params: Map[String, Seq[String]])(implicit tx: Session) =
+      editor.update(params, query.filter(key(_) === id)) match {
+        case Left(fails: Seq[FailedUpdate]) =>
           tx.rollback()
-          logger.warn(s"could not update ${this.tablename} with data $params: $fails")
+          fails foreach (f => notifier.updateFailed(tablename, id, f))
           BadRequest ~> ResponseString(fails.mkString("\n"))
         case Right(updates) =>
-          logger.info(s"updated $updates rows for table ${this.tablename} for id $i with values $params")
+          updates foreach (u => notifier.updated(tablename, id, u))
           Ok ~> ResponseString(updates + " rows updated")
       }
   }

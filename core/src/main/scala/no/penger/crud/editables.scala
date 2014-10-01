@@ -66,7 +66,7 @@ trait editables extends namedCells with QueryParserModule {
     def update[TABLE](params: Map[String, Seq[String]],
                       q:      Query[TABLE, PROJECTION, Seq])
                      (implicit s:      Session,
-                      c:      ClassTag[TABLE]): Either[Seq[Throwable], Int] = {
+                      c:      ClassTag[TABLE]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
       val namedCellsForQuery: Seq[NamedCell] = namedCells(q)
 
@@ -77,23 +77,32 @@ trait editables extends namedCells with QueryParserModule {
         }
       }
 
-      val results: Iterable[Try[Int]] = for {
+      val results: Iterable[Either[FailedUpdate, Update]] = for {
         (key, values) <- params
-      } yield for {
-          namedCell  <- namedCellForKey(key)
-          validValue <- namedCell.tryCast(values.head)
-          result     <- Try(q.map(cols => columnForCell(cols, namedCell)).update(validValue))
-        } yield result
+      } yield {
+        val tried = for {
+          namedCell   <- namedCellForKey(key)
+          validValue  <- namedCell.tryCast(values.head)
+          colToUpdate <- Try(q.map(cols => columnForCell(cols, namedCell)))
+          oldValue    <- Try(colToUpdate.firstOption)
+          numUpdates  <- Try(colToUpdate.update(validValue))
+        } yield Update(key, oldValue, validValue, numUpdates)
+
+        tried match {
+          case Success(update) => Right(update)
+          case Failure(t)      => Left(FailedUpdate(key, values, t))
+        }
+      }
 
       sequence(results)
     }
 
-    def sequence(result: Iterable[Try[Int]]): Either[Seq[Throwable], Int] =
-      result.foldLeft[Either[Seq[Throwable], Int]](Right(0)){
-        case (Right(acc), Success(saved)) => Right(acc + saved)
-        case (Right(_),   Failure(why))   => Left(Seq(why))
-        case (Left(acc),  Success(_))     => Left(acc)
-        case (Left(acc),  Failure(saved)) => Left(acc :+ saved)
+    def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
+      result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
+        case (Right(acc), Right(u)) => Right(acc :+ u)
+        case (Left(acc),  Left(f))  => Left(acc :+ f)
+        case (Left(acc),  _)        => Left(acc)
+        case (_,          Left(f))  => Left(Seq(f))
       }
   }
 }

@@ -1,12 +1,12 @@
 package no.penger
 package crud
 
-import javax.servlet.http.HttpServletRequest
+import java.io.InputStream
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
-import unfiltered.request.{GET, HttpRequest}
+import unfiltered.request.GET
 import unfiltered.response._
 
 import scala.language.implicitConversions
@@ -71,7 +71,7 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   val Employees  = TableQuery[EmployeeT]
 }
 
-trait StoreCrudPlan extends StoreTables with Crud {
+trait StoreCrudPlan extends StoreTables with Crud with loggingUpdateNotifier {
   object crudPlan extends Plan {
 
     /**
@@ -92,10 +92,12 @@ trait StoreCrudPlan extends StoreTables with Crud {
     implicit val e2 = mappedEditable(Product.unapply)
     implicit val e3 = mappedEditable(Store.unapply)
 
-    private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees", editable = false)(key = _.id)
-    private lazy val products = Editor(Products, "/products")(key = _.id)
+    object notifier extends LoggingUpdateNotifier
 
-    private lazy val stores = Editor(Stores, "/stores")(key = _.id).sub(
+    private lazy val employees = Editor(Employees.sortBy(_.name.asc), "/employees", notifier, editable = false)(key = _.id)
+    private lazy val products = Editor(Products, "/products", notifier)(key = _.id)
+
+    private lazy val stores = Editor(Stores, "/stores", notifier)(key = _.id).sub(
       employees.on(_.worksAtRef),
       products.on(_.soldByRef)
       //todo: single something
@@ -105,7 +107,8 @@ trait StoreCrudPlan extends StoreTables with Crud {
     val resourceIntent: Plan.Intent = {
       /* dont do this at home etc */
       case req@GET(ContextPath(ctx, resource)) =>
-        Option(classOf[StoreCrudPlan].getResourceAsStream(resource.mkString)).fold[ResponseFunction[Any]](NotFound) (
+        val maybeStream: Option[InputStream] = Option(classOf[StoreCrudPlan].getResourceAsStream(resource))
+        maybeStream.fold[ResponseFunction[Any]](NotFound) (
           is => Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
         )
     }
