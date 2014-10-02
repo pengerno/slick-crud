@@ -25,6 +25,7 @@ trait editors extends editables with view with updateNotifier {
   def respond(ctx: String, title: String)(body: ViewFormat): ResponseFunction[Any]
 
   import profile.simple._
+  import scala.slick.lifted.AbstractTable
 
   object Editor {
     /**

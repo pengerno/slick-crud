@@ -60,9 +60,9 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   val Products = TableQuery[ProductT]
 
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
-    def id         = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
-    def name       = column[Name]      ("name")
-    def worksAtRef = column[StoreId]   ("works_at")
+    val id         = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
+    val name       = column[Name]      ("name")
+    val worksAtRef = column[StoreId]   ("works_at")
 
     def *          = (id, name, worksAtRef) <> (Employee.tupled, Employee.unapply)
 

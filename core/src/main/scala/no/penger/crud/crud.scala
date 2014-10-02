@@ -21,4 +21,13 @@ package object crud {
     override def toString: String = c.asString
     def columnName = c.asString
   }
+
+  def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
+    result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
+      case (Right(acc), Right(u)) => Right(acc :+ u)
+      case (Left(acc),  Left(f))  => Left(acc :+ f)
+      case (Left(acc),  _)        => Left(acc)
+      case (_,          Left(f))  => Left(Seq(f))
+    }
+
 }

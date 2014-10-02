@@ -2,81 +2,89 @@ package no.penger
 package crud
 
 trait queryParser {
-  import scala.language.higherKinds
 
   /* slick integration */
   val profile: slick.driver.JdbcDriver
   def db: profile.simple.Database
 
-  /* aliases */
-  final type AbstractTable[T]                  = slick.lifted.AbstractTable[T]
-  final type TableQuery[E <: AbstractTable[_]] = slick.lifted.TableQuery[E]
-  final type Query[+E, U, C[_]]                = profile.simple.Query[E, U, C]
-  final type Q                                 = Query[_, _, Seq]
+  final type Q = slick.lifted.Query[_, _, Seq]
 
-  /**
-   * This is all about diving into slicks AST. Dfs implements a naive depth first search which
-   * returns the first match, and most of the code ignores the inherent structure in the tree
-   * and picks out what it's looking for. I'm sure that is not always correct.
-   */
   object QueryParser {
+    import scala.slick.ast._
 
-    import scala.slick.ast.{Bind, ElementSymbol, FieldSymbol, Join, Node, OptionApply, ProductNode, Pure, Select, TableNode}
+    case class IndexedColumn(ref: Symbol, idx: Int)
 
-    trait Dfs[T] {
-      def pred: PartialFunction[Node, T]
-
-      /* im sure this will blow up one day. sorry*/
-      final def apply(q: Q): T = find(q.toNode).get
-
-      final def apply(under: Node): T = find(under).get
-
-      final def find(under: Node): Option[T] =
-        Some(under) collectFirst pred orElse
-          (under.nodeChildren.toStream map find collectFirst { case Some(found) => found})
-    }
-
-    /* find tablename in a slick ast */
-    object tableNameFrom extends Dfs[TableName] {
-      override val pred: PartialFunction[Node, TableName] = {
-        case TableNode(_, tablename, _, _, _) => TableName(tablename)
+    /* naive depth first search into a query */
+    object Dfs{
+      def find[T](pf: PartialFunction[Node, T])(under: Node): Option[T] = {
+        Some(under) collectFirst pf orElse
+          (under.nodeChildren.toStream map find(pf) collectFirst { case Some(found) => found})
       }
+      def get[T](pf: PartialFunction[Node, T])(under: Node): T = find(pf)(under).get
     }
 
-    object NamedColumn {
-      def unapply(n: Node) = n match {
-        case Select(_, FieldSymbol(name)) => Some(ColumnName(name))
-        case Select(_, ElementSymbol(idx)) => Some(ColumnName(idx.toString))
-        case _ => None
+    object columns extends (Q => Seq[TableColumn]){
+
+      def apply(q: Q): Seq[TableColumn] = {
+        val name = tableNameFrom(q)
+        colsFromQuery(q.toNode) map name.withColumn
       }
-    }
 
-    object columns extends (Q => Seq[TableColumn]) {
-      def apply(q: Q): Seq[TableColumn] =
-        columnsPerTable(q).flatMap {
-          case (table, columns) => columns map table.withColumn
-        }.toSeq
+      /* recursively lookup column references into the tree until we find a TableExpansion with names */
+      def colsFromQuery(cols: Node): Seq[ColumnName] = cols match {
+        /* return column names */
+        case TableExpansion(_, _, colNames) => columnsFor(colNames)
+        /* select a subset of the columns (that we iterate further to find definitions for) */
+        case Bind(_, from, selects) => selectFrom(selects, colsFromQuery(from))
 
-      def columnsPerTable(q: Q): Seq[(TableName, Seq[ColumnName])] =
-        joinsFor find q.toNode getOrElse Seq(q.toNode) map {
-          table => (tableNameFrom(table), columnsFor(bindFor find table getOrElse table))
-        }
+        /* basically ignore these, should be more clever here */
+        case SortBy(_, from, _) => colsFromQuery(from)
+        case Filter(_, from, _) => colsFromQuery(from)
 
-      object pureFor extends Dfs[Node] {
-        override val pred: PartialFunction[Node, Node] = {
-          case p: Pure => p
+        /* im sure there will be other that will show up here. sorry, hehe*/
+      }
+
+      /* picks subset of columns */
+      def selectFrom(selects: Node, cols: Seq[ColumnName]): Seq[ColumnName] = {
+        columnsOrIndexFor(selects).foldLeft[Seq[ColumnName]](Seq.empty){
+          case (acc, Left(IndexedColumn(_, idx))) => acc :+ cols(idx - 1)
+          case (acc, Right(name))                 => acc :+ name
         }
       }
 
-      object bindFor extends Dfs[Node] {
-        override val pred: PartialFunction[Node, Node] = {
-          case Bind(_, _, n) => n
+      /* find all column names or column references under node  */
+      def columnsOrIndexFor(n: Node) = {
+        object NamedOrIndexedColumn {
+          def unapply(n: Node): Option[Either[IndexedColumn, ColumnName]] = n match {
+            case Select(_, FieldSymbol(name))         => Some(Right(ColumnName(name)))
+            case Select(Ref(sym), ElementSymbol(idx)) => Some(Left(IndexedColumn(sym, idx)))
+            case _ => None
+          }
         }
+
+        Dfs.get[Seq[Either[IndexedColumn, ColumnName]]] {
+          /* more than one column selected */
+          case ProductNode(cs) => cs map {
+            /* normal column */
+            case NamedOrIndexedColumn(name) => name
+            /* optional column */
+            case OptionApply(NamedOrIndexedColumn(name)) => name
+          }
+          /* exactly one column selected */
+          case NamedOrIndexedColumn(name) => Seq(name)
+        }(n)
       }
 
-      /* find names of columns under a given node */
-      object columnsFor extends Dfs[Seq[ColumnName]] {
-        override val pred: PartialFunction[Node, Seq[ColumnName]] = {
+      /* find all column names under node  */
+      def columnsFor(n: Node): Seq[ColumnName] = {
+        object NamedColumn {
+          def unapply(n: Node) = n match {
+            case Select(_, FieldSymbol(name)) => Some(ColumnName(name))
+            case _ => None
+          }
+        }
+
+        Dfs.get[Seq[ColumnName]] {
           /* more than one column selected */
           case ProductNode(cs) => cs map {
             /* normal column */
@@ -86,18 +94,14 @@ trait queryParser {
           }
           /* exactly one column selected */
           case NamedColumn(name) => Seq(name)
-        }
-      }
-
-      /* this supports nested, ie more than two tables, joins. not tested much, heh */
-      object joinsFor extends Dfs[Seq[Node]] {
-        def recJoin(n: Node) = joinsFor find n getOrElse Seq(n)
-
-        override val pred: PartialFunction[Node, Seq[Node]] = {
-          case Join(_, _, left, right, _, _) => recJoin(left) ++ recJoin(right)
-        }
+        }(n)
       }
     }
+
+    def tableNameFrom(q: Q): TableName =
+      Dfs.get[TableName] {
+        case TableNode(_, tablename, _, _, _) => TableName(tablename)
+      }(q.toNode)
 
     def primaryKeys(q: Q): Set[TableColumn] = columns(q).toSet
   }
