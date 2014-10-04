@@ -31,13 +31,13 @@ trait crudActions extends queryParser with namedCells {
 
     def update(verifyQ: Q,
                updateQ: Q,
-               params:  Map[ColumnName, String])
+               updates: Map[ColumnName, String])
      (implicit s:       Session,
                cr:      CellRow[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
       val named = namedCells(verifyQ)
 
-      val results: Iterable[Either[FailedUpdate, Update]] = params.map {
+      val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
         case (columnName, value) =>
           val tried: Try[Update] = for {
             cellWithName   <- named.find(_.name.c == columnName).toTry(s"table ${QueryParser.tableNameFrom(updateQ)} does not have a column $columnName")
@@ -56,7 +56,7 @@ trait crudActions extends queryParser with namedCells {
     }
 
     private def namedCells(q: Q)(implicit e: CellRow[_]): Seq[NamedCell] =
-      QueryParser.columns(q).zip(e.cells).map{
+      QueryParser.columnNames(q).zip(e.cells).map{
         case (columnName, cell) => NamedCell(columnName, cell)
       }
 
@@ -116,7 +116,7 @@ trait crudActions extends queryParser with namedCells {
         val mirror    = runtimeMirror(this.getClass.getClassLoader)
         val reflected = mirror.reflect(slickTable)
 
-        def nameOfColumn(c: Column[Any]): ColumnName = QueryParser.columns.columnsFor(c.toNode).head
+        def nameOfColumn(c: Column[Any]): ColumnName = QueryParser.columnNames.columnsFor(c.toNode).head
 
         /* this was my best shot at getting at all the rows defined as defs and vals */
         val foundCols = reflected.symbol.asType.toType.members.collect {

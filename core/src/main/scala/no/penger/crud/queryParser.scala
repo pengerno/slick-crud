@@ -1,11 +1,7 @@
 package no.penger
 package crud
 
-trait queryParser {
-
-  /* slick integration */
-  val profile: slick.driver.JdbcDriver
-  def db: profile.simple.Database
+trait queryParser extends slickIntegration {
 
   final type Q = slick.lifted.Query[_, _, Seq]
 
@@ -23,7 +19,7 @@ trait queryParser {
       def get[T](pf: PartialFunction[Node, T])(under: Node): T = find(pf)(under).get
     }
 
-    object columns extends (Q => Seq[TableColumn]){
+    object columnNames extends (Q => Seq[TableColumn]){
 
       def apply(q: Q): Seq[TableColumn] = {
         val name = tableNameFrom(q)
@@ -103,6 +99,6 @@ trait queryParser {
         case TableNode(_, tablename, _, _, _) => TableName(tablename)
       }(q.toNode)
 
-    def primaryKeys(q: Q): Set[TableColumn] = columns(q).toSet
+    def primaryKeys(q: Q): Set[TableColumn] = columnNames(q).toSet
   }
 }

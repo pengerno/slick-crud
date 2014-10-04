@@ -96,23 +96,43 @@ trait editors extends crudActions with view with updateNotifier {
 
     def intent:Plan.Intent = {
 
-      case req@GET(ContextPath(ctx, Seg(MountedAt))) => db.withSession{ implicit s =>
+      case req@GET(ContextPath(ctx, Seg(MountedAt))) =>
         respond(ctx, title = MountedAt.head)(view(ctx))
-      }
 
-      case req@GET(ContextPath(ctx, Seg(Id(id)))) => db.withSession{ implicit s =>
-        respond(ctx, title = s"$tableName for $id")(
+      case req@GET(ContextPath(ctx, Seg(Id(id)))) =>
+        respond(ctx, title = s"$tableName for $id") (
           editors.map(_(id).view(ctx)).foldLeft(viewRow(ctx, id))(append)
         )
-      }
 
-      case req@POST(ContextPath(_, Seg(Id(id)))) & Params(params) => db.withTransaction{ implicit s =>
+      case req@POST(ContextPath(ctx, Seg(Id(id)))) & Params(params) =>
         val updates = params.map {
           case (name, values) => ColumnName(name) -> values.head
         }
-        val t = table.filter(pk(_) === id)
+        update(ctx, id, updates)
+    }
 
-        databaseAction.update(t, query(t), updates) match {
+    def view(ctx: String): ViewFormat = {
+      val rows        = db.withSession(implicit s => databaseAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow)))
+      val columnNames = QueryParser.columnNames(query(table))
+
+      val view        = View(base(ctx), uniqueId, tableName, columnNames)
+
+      if (isOnlyOneRow) view.rowOpt(None, rows.headOption)
+      else              view.many(rows)
+    }
+
+    def viewRow(ctx: String, id:ID): ViewFormat = {
+      val selectQuery = query(table.filter(pk(_) === id))
+      val rowOpt      = db.withSession(implicit s => databaseAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption)
+      val columnNames = QueryParser.columnNames(selectQuery)
+
+      View(base(ctx), uniqueId, tableName, columnNames).rowOpt(Some(id).map(_.toString), rowOpt)
+    }
+
+    def update(ctx: String, id: ID, updates: Map[ColumnName, String]) = {
+      val filteredTable = table.filter(pk(_) === id)
+      db.withTransaction{ implicit s =>
+        databaseAction.update(filteredTable, query(filteredTable), updates) match {
           case Left(fails: Seq[FailedUpdate]) =>
             s.rollback()
             fails foreach notifier.updateFailed(tableName, id)
@@ -122,24 +142,6 @@ trait editors extends crudActions with view with updateNotifier {
             Ok ~> ResponseString(okUpdates.mkString("\n"))
         }
       }
-    }
-
-    def view(ctx: String)(implicit s: Session): ViewFormat = {
-      val rows        = databaseAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
-      val columnNames = QueryParser.columns(query(table))
-
-      val view        = View(base(ctx), uniqueId, tableName, columnNames)
-
-      if (isOnlyOneRow) view.rowOpt(None, rows.headOption)
-      else              view.many(rows)
-    }
-
-    def viewRow(ctx: String, id:ID)(implicit s:Session): ViewFormat = {
-      val selectQuery = query(table.filter(pk(_) === id))
-      val rowOpt      = databaseAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
-      val columnNames = QueryParser.columns(selectQuery)
-
-      View(base(ctx), uniqueId, tableName, columnNames).rowOpt(Some(id).map(_.toString), rowOpt)
     }
   }
 }
