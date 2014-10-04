@@ -20,7 +20,7 @@ import scala.reflect.ClassTag
  *  - sends notifications of (failed) updates thorough an 'UpdateNotifier'
  *  - composes with other 'Editor's (see 'on()', 'single()' and 'sub()')
  */
-trait editors extends editables with view with updateNotifier {
+trait editors extends crudActions with view with updateNotifier {
 
   def respond(ctx: String, title: String)(body: ViewFormat): ResponseFunction[Any]
 
@@ -51,34 +51,33 @@ trait editors extends editables with view with updateNotifier {
        table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
        isEditable: Boolean            = true)
-      (query:      TableQuery[ROW] => Query[LP, P, Seq])
-      (pk:         LP => Column[ID]) =
+      (query:      Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
+       pk:         ROW => Column[ID]) =
 
-      new Editor[LP, P, ID](mount, query(table), pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
+      new Editor[ROW, LP, P, ID](mount, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[LP : ClassTag, P: Editable, ID: Cell : BaseColumnType] private (
+  case class Editor[ROW <: AbstractTable[_], LP : ClassTag, P: Editable, ID: Cell : BaseColumnType] private (
       mount:        String,
-      query:        Query[LP, P, Seq],
-      pk:           LP  => Column[ID],
+      table:        Query[ROW, ROW#TableElementType, Seq],
+      query:        Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
+      pk:           ROW => Column[ID],
       notifier:     UpdateNotifier,
       isEditable:   Boolean,
-      editors:      Seq[ID => Editor[_, _, _]],
+      editors:      Seq[ID => Editor[_, _, _, _]],
       isOnlyOneRow: Boolean) {
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
-    def on[X : BaseColumnType](f:LP => Column[X])(x:X) = copy(query = query.filter(f(_) === x))
+    def on[X : BaseColumnType](f:ROW => Column[X])(x:X) = copy(table = table.filter(f(_) === x))
 
     /* return a new editor with referenced subeditors */
-    def sub(editors:(ID => Editor[_, _, _])*) = copy(editors = editors)
+    def sub(editors:(ID => Editor[_, _, _, _])*) = copy(editors = editors)
 
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
-    val primaryKeys = QueryParser.primaryKeys(query.map(pk))
-    val tableName   = QueryParser.tableNameFrom(query)
-    
-    val editable    = implicitly[Editable[P]]
+    val primaryKeys = QueryParser.primaryKeys(table.map(pk))
+    val tableName   = QueryParser.tableNameFrom(table)
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
@@ -96,6 +95,7 @@ trait editors extends editables with view with updateNotifier {
     }
 
     def intent:Plan.Intent = {
+
       case req@GET(ContextPath(ctx, Seg(MountedAt))) => db.withSession{ implicit s =>
         respond(ctx, title = MountedAt.head)(view(ctx))
       }
@@ -106,37 +106,40 @@ trait editors extends editables with view with updateNotifier {
         )
       }
 
-      case req@POST(ContextPath(_, Seg(Id(id)))) & Params(params) => db.withTransaction{ implicit tx =>
-        update(id, params)
+      case req@POST(ContextPath(_, Seg(Id(id)))) & Params(params) => db.withTransaction{ implicit s =>
+        val updates = params.map {
+          case (name, values) => ColumnName(name) -> values.head
+        }
+        val t = table.filter(pk(_) === id)
+
+        databaseAction.update(t, query(t), updates) match {
+          case Left(fails: Seq[FailedUpdate]) =>
+            s.rollback()
+            fails foreach notifier.updateFailed(tableName, id)
+            BadRequest ~> ResponseString(fails.mkString("\n"))
+          case Right(okUpdates) =>
+            okUpdates foreach notifier.updated(tableName, id)
+            Ok ~> ResponseString(okUpdates.mkString("\n"))
+        }
       }
     }
 
     def view(ctx: String)(implicit s: Session): ViewFormat = {
-      val rows        = editable.rows(base(ctx), primaryKeys, query, isEditable, max = Some(1).filter(_ => isOnlyOneRow))
-      val columnNames = editable.columns(query)
-      val ed          = View(base(ctx), uniqueId, tableName)
+      val rows        = databaseAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
+      val columnNames = QueryParser.columns(query(table))
 
-      if (isOnlyOneRow) ed.rowOpt(None, rows.headOption, columnNames)
-      else              ed.many(rows, columnNames)
+      val view        = View(base(ctx), uniqueId, tableName, columnNames)
+
+      if (isOnlyOneRow) view.rowOpt(None, rows.headOption)
+      else              view.many(rows)
     }
 
     def viewRow(ctx: String, id:ID)(implicit s:Session): ViewFormat = {
-      val selectQuery = query.filter(pk(_) === id.bind)
-      val rowOpt      = editable.rows(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
-      val columnNames = editable.columns(selectQuery)
-      
-      View(base(ctx), uniqueId, tableName).rowOpt(Some(id).map(_.toString), rowOpt, columnNames)
-    }
+      val selectQuery = query(table.filter(pk(_) === id))
+      val rowOpt      = databaseAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
+      val columnNames = QueryParser.columns(selectQuery)
 
-    def update(id: ID, params: Map[String, Seq[String]])(implicit s: Session) =
-      editable.update(params, query.filter(pk(_) === id)) match {
-        case Left(fails: Seq[FailedUpdate]) =>
-          s.rollback()
-          fails foreach notifier.updateFailed(tableName, id)
-          BadRequest ~> ResponseString(fails.mkString("\n"))
-        case Right(updates) =>
-          updates foreach notifier.updated(tableName, id)
-          Ok ~> ResponseString(updates + " rows updated")
-      }
+      View(base(ctx), uniqueId, tableName, columnNames).rowOpt(Some(id).map(_.toString), rowOpt)
+    }
   }
 }

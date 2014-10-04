@@ -11,6 +11,6 @@ trait updateNotifierLogging extends updateNotifier {
       logger.info(s"updated table $t for row $id for column ${u.column} from ${u.oldValue} to ${u.newValue}")
 
      override final def updateFailed[ID](t: TableName, id: ID)(f: FailedUpdate) =
-      logger.warn(s"could not update table $t for row $id for column ${f.column} and value ${f.values}}", f.t)
+      logger.warn(s"could not update table $t for row $id for column ${f.column} and value ${f.value}}", f.t)
   }
 }

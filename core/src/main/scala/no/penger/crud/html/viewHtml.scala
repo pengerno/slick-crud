@@ -8,25 +8,25 @@ trait viewHtml extends view with viewFormatHtml {
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
-  override def View(base: String, uniqueId: String, tableName: TableName) =
-    ViewHtml(base, uniqueId, tableName)
+  override def View(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) =
+    ViewHtml(base, uniqueId, tableName, columnNames)
 
-  case class ViewHtml(base: String, uniqueId: String, tableName: TableName) extends View {
+  case class ViewHtml(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) extends View {
 
-    override def many(rows: Seq[Seq[NodeSeq]], cs: Seq[TableColumn]) =
+    override def many(rows: Seq[Seq[NodeSeq]]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
         <table id={uniqueId}>
-          <thead><tr>{cs.map(name => <th>{name}</th>)}</tr></thead>
+          <thead><tr>{columnNames.map(name => <th>{name}</th>)}</tr></thead>
           {rows.map{ row => <tr>{row}</tr>}}
         </table>
       </div>
 
-    override def rowOpt(id: Option[String], rowOpt: Option[Seq[NodeSeq]], cs: Seq[TableColumn]) =
+    override def rowOpt(id: Option[String], rowOpt: Option[Seq[NodeSeq]]) =
       rowOpt match {
         case None      => view404(id)
-        case Some(row) => single(cs zip row)
+        case Some(row) => single(columnNames zip row)
       }
 
     def single(rowCells: Seq[RenderedNamedValue]) =
