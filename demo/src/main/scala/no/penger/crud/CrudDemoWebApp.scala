@@ -88,9 +88,9 @@ trait StoreCrudPlan extends StoreTables with Crud {
      * These editable-instances are necessary for now in order to expose
      *  tables that have default projections to a case class for example.
      */
-    implicit val e1 = mappedEditable(Employee.unapply)
-    implicit val e2 = mappedEditable(Product.unapply)
-    implicit val e3 = mappedEditable(Store.unapply)
+    implicit val e1 = mappedCellRow(Employee.unapply)
+    implicit val e2 = mappedCellRow(Product.unapply)
+    implicit val e3 = mappedCellRow(Store.unapply)
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 

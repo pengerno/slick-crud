@@ -4,7 +4,7 @@ import scala.util.{Failure, Success, Try}
 
 package object crud {
 
-  trait CrudAbstract extends editors with editableProductInstances
+  trait CrudAbstract extends editors with cellRowInstances
 
   trait Crud extends CrudAbstract with html.cellInstances with html.viewHtml with logging.updateNotifierLogging
 

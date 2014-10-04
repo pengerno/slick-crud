@@ -26,4 +26,17 @@ trait cells extends viewFormat {
       }
     protected def cast(value: String): E
   }
+
+  /**
+   * A collection of 'Cell's, one for each column of a database row.
+   *  This means that in order create an instance of this, you need 'Cell's for every
+   *  type in the row
+   * @tparam PROJECTION
+   */
+  @annotation.implicitNotFound("Couldn't find cell instances for all the types in projection ${PROJECTION}")
+  trait CellRow[PROJECTION]{
+    def cells:List[Cell[_]]
+    def list(e:PROJECTION):List[Any]
+  }
+
 }

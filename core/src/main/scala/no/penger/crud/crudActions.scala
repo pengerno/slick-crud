@@ -3,7 +3,7 @@ package no.penger.crud
 import scala.slick.lifted.AbstractTable
 import scala.util.Try
 
-trait crudActions extends queryParser with namedCells with editables {
+trait crudActions extends queryParser with namedCells {
   import profile.simple._
 
   object databaseAction {
@@ -14,13 +14,13 @@ trait crudActions extends queryParser with namedCells with editables {
                             editable: Boolean,
                             max:      Option[Int] = None)
                   (implicit s:        Session,
-                            e:        Editable[PROJECTION]): Seq[Seq[ViewFormat]] = {
+                            cr:       CellRow[PROJECTION]): Seq[Seq[ViewFormat]] = {
 
       val rows  = max.fold(q)(n => q.take(n)).list
       val named = namedCells(q)
 
       rows.map { row =>
-        named.zip(e.list(row)).map {
+        named.zip(cr.list(row)).map {
           case (cell, value) =>
             if (pks(cell.name)) cell.link(ctx, value)
             else if (editable)  cell.editable(value)
@@ -33,7 +33,7 @@ trait crudActions extends queryParser with namedCells with editables {
                updateQ: Q,
                params:  Map[ColumnName, String])
      (implicit s:       Session,
-               e:       Editable[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
+               cr:      CellRow[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
       val named = namedCells(verifyQ)
 
@@ -55,7 +55,7 @@ trait crudActions extends queryParser with namedCells with editables {
       sequence(results)
     }
 
-    private def namedCells(q: Q)(implicit e: Editable[_]): Seq[NamedCell] =
+    private def namedCells(q: Q)(implicit e: CellRow[_]): Seq[NamedCell] =
       QueryParser.columns(q).zip(e.cells).map{
         case (columnName, cell) => NamedCell(columnName, cell)
       }

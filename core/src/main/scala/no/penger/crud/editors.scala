@@ -46,7 +46,7 @@ trait editors extends crudActions with view with updateNotifier {
      * @tparam ID the primary key column, for example Column[Int]
      *            
      */
-    def apply[ROW <: AbstractTable[_], LP : ClassTag, P : Editable, ID: Cell : BaseColumnType]
+    def apply[ROW <: AbstractTable[_], LP : ClassTag, P : CellRow, ID: Cell : BaseColumnType]
       (mount:      String,
        table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
@@ -57,7 +57,7 @@ trait editors extends crudActions with view with updateNotifier {
       new Editor[ROW, LP, P, ID](mount, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[ROW <: AbstractTable[_], LP : ClassTag, P: Editable, ID: Cell : BaseColumnType] private (
+  case class Editor[ROW <: AbstractTable[_], LP : ClassTag, P: CellRow, ID: Cell : BaseColumnType] private (
       mount:        String,
       table:        Query[ROW, ROW#TableElementType, Seq],
       query:        Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
