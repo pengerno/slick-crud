@@ -72,7 +72,7 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
-    def view(baseUrl: String): ViewFormat = {
+    def view(baseUrl: String) = {
       val rows        = db.withSession(
         implicit s => crudAction.read(baseUrl, primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
       )
@@ -84,14 +84,14 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
       else              view.many(rows)
     }
 
-    def viewRow(baseUrl: String, id:ID): ViewFormat = {
+    def viewRow(baseUrl: String, id:ID) = {
       val selectQuery = query(table.filter(pk(_) === id))
       val rowOpt      = db.withSession(
         implicit s => crudAction.read(baseUrl, primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
       )
       val columnNames = QueryParser.columnNames(selectQuery)
 
-      val view = View(baseUrl, uniqueId, tableName, columnNames).rowOpt(Some(id).map(_.toString), rowOpt)
+      val view = View(baseUrl, uniqueId, tableName, columnNames).rowOpt(Some(idCell.fixed(id)), rowOpt)
 
       editors.map(_(id).view(baseUrl)).foldLeft(view)(append)
     }

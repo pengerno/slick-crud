@@ -14,7 +14,7 @@ trait crudActions extends queryParser with cells {
                             editable: Boolean,
                             max:      Option[Int] = None)
                   (implicit s:        Session,
-                            cr:       CellRow[PROJECTION]): Seq[Seq[ViewFormat]] = {
+                            cr:       CellRow[PROJECTION]): Seq[Seq[ElemFormat]] = {
 
       val rows         = max.fold(q)(n => q.take(n)).list
       val untypedCells = untypedCellsForQuery(q)

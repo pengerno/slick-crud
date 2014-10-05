@@ -11,9 +11,9 @@ import scala.util.{Failure, Try}
 trait cells extends viewFormat {
 
   trait Cell[E] {
-    def link(ctx: String, e:E): ViewFormat
-    def editable(e: E):         ViewFormat
-    def fixed(e: E):            ViewFormat
+    def link(ctx: String, e:E): ElemFormat
+    def editable(e: E):         ElemFormat
+    def fixed(e: E):            ElemFormat
     def tryCast(value: String): Try[E]
   }
 

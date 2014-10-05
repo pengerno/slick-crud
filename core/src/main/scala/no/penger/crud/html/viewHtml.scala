@@ -1,7 +1,7 @@
 package no.penger.crud
 package html
 
-import scala.xml.NodeSeq
+import scala.xml.{Elem, NodeSeq}
 
 trait viewHtml extends view with viewFormatHtml {
 
@@ -13,7 +13,7 @@ trait viewHtml extends view with viewFormatHtml {
 
   case class ViewHtml(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) extends View {
 
-    override def many(rows: Seq[Seq[NodeSeq]]) =
+    override def many(rows: Seq[Seq[Elem]]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
@@ -23,13 +23,13 @@ trait viewHtml extends view with viewFormatHtml {
         </table>
       </div>
 
-    override def rowOpt(id: Option[String], rowOpt: Option[Seq[NodeSeq]]) =
+    override def rowOpt(id: Option[Elem], rowOpt: Option[Seq[Elem]]) =
       rowOpt match {
         case None      => view404(id)
         case Some(row) => single(columnNames zip row)
       }
 
-    def single(rowCells: Seq[RenderedNamedValue]) =
+    def single(rowCells: Seq[(TableColumn, NodeSeq)]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
@@ -39,7 +39,7 @@ trait viewHtml extends view with viewFormatHtml {
         </table>
       </div>
 
-    def view404(idOpt: Option[String]) = idOpt match {
+    def view404(idOpt: Option[Elem]) = idOpt match {
       case Some(id) => <h1>{s"Could not find a $tableName for $id"}</h1>
       case None     => <h1>{s"Could not find this $tableName"}</h1>
     }

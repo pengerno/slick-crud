@@ -2,6 +2,7 @@ package no.penger.crud
 
 trait viewFormat {
   
-  /* the type of whatever we render to, for example NodeSeq */
-  type ViewFormat
+  /* the types of whatever we render to, for example Elem and NodeSeq */
+  type ElemFormat
+  type PageFormat
 }

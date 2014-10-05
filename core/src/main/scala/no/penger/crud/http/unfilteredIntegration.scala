@@ -9,7 +9,7 @@ import unfiltered.response._
 
 trait unfilteredIntegration extends editorAbstracts {
 
-  def respond(ctx: String, title: String)(body: ViewFormat): ResponseFunction[Any]
+  def respond(ctx: String, title: String)(body: PageFormat): ResponseFunction[Any]
 
   class EditorUnfiltered[ID](mount: String, editor: EditorAbstract[ID]){
 
