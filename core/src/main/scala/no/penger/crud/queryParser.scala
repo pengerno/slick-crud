@@ -99,6 +99,6 @@ trait queryParser extends slickIntegration {
         case TableNode(_, tablename, _, _, _) => TableName(tablename)
       }(q.toNode)
 
-    def primaryKeys(q: Q): Set[TableColumn] = columnNames(q).toSet
+    def primaryKeys(q: Q): Set[ColumnName] = columnNames(q).map(_.c).toSet
   }
 }

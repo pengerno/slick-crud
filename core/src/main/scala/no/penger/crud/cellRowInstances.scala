@@ -8,7 +8,7 @@ trait cellRowInstances extends cells {
   def mappedCellRow[Mapped, Tupled <: Product : CellRow](unapply: Mapped => Option[Tupled]) =
     new CellRow[Mapped] {
       private val wrapped          = implicitly[CellRow[Tupled]]
-      override def list(e: Mapped) = wrapped.list(unapply(e).get)
+      override def unpackValues(e: Mapped) = wrapped.unpackValues(unapply(e).get)
       override def cells           = wrapped.cells
     }
 
@@ -16,7 +16,7 @@ trait cellRowInstances extends cells {
    * Add support for tuples out of the box
    */
   trait CellRowProduct[P <: Product] extends CellRow[P] {
-    def list(e: P): List[Any] = e.productIterator.toList
+    def unpackValues(e: P): List[Any] = e.productIterator.toList
   }
 
   private def c[A: Cell]: Cell[A] = implicitly[Cell[A]]

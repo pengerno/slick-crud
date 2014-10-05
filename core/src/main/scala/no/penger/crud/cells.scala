@@ -36,6 +36,6 @@ trait cells extends viewFormat {
   @annotation.implicitNotFound("Couldn't find cell instances for all the types in projection ${PROJECTION}")
   trait CellRow[PROJECTION]{
     def cells:List[Cell[_]]
-    def list(e:PROJECTION):List[Any]
+    def unpackValues(e:PROJECTION):List[Any]
   }
 }

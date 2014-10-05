@@ -3,29 +3,29 @@ package no.penger.crud
 import scala.slick.lifted.AbstractTable
 import scala.util.Try
 
-trait crudActions extends queryParser with namedCells {
+trait crudActions extends queryParser with cells {
   import profile.simple._
 
   object crudAction {
     /* fetches rows from db and renders them using the cells provided in cells() */
     def read[T, PROJECTION](ctx:      String,
-                            pks:      Set[TableColumn],
+                            pks:      Set[ColumnName],
                             q:        Query[T, PROJECTION, Seq],
                             editable: Boolean,
                             max:      Option[Int] = None)
                   (implicit s:        Session,
                             cr:       CellRow[PROJECTION]): Seq[Seq[ViewFormat]] = {
 
-      val rows  = max.fold(q)(n => q.take(n)).list
-      val named = namedCells(q)
+      val rows         = max.fold(q)(n => q.take(n)).list
+      val untypedCells = untypedCellsForQuery(q)
 
       rows.map { row =>
-        named.zip(cr.list(row)).map {
-          case (cell, value) =>
-            if (pks(cell.name)) cell.link(ctx, value)
+        untypedCells.zip(cr.unpackValues(row)).map {
+          case ((name, cell), value) =>
+            if (pks(name))      cell.link(ctx, value)
             else if (editable)  cell.editable(value)
             else                cell.fixed(value)
-        }
+        }.toSeq
       }
     }
 
@@ -35,16 +35,18 @@ trait crudActions extends queryParser with namedCells {
      (implicit s:       Session,
                cr:      CellRow[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
-      val named = namedCells(verifyQ)
+      val untypedCells = untypedCellsForQuery(verifyQ)
 
       val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
         case (columnName, value) =>
           val tried: Try[Update] = for {
-            cellWithName   <- named.find(_.name.c == columnName).toTry(s"table ${QueryParser.tableNameFrom(updateQ)} does not have a column $columnName")
-            columnWithName <- Try(updateQ.map(row => columnFromRowWithName(updateQ, row, cellWithName.name.c)))
-            oldValue       <- Try(columnWithName.firstOption)
-            validValue     <- cellWithName.tryCast(value)
-            numUpdates     <- Try(columnWithName.update(validValue))
+            cell           <- untypedCells.collectFirst {
+              case (`columnName`, cell) => cell
+            }.toTry(s"table ${QueryParser.tableNameFrom(updateQ)} does not have a column $columnName")
+            updater        <- Try(updateQ.map(row => columnFromRowWithName(updateQ, row, columnName)))
+            oldValue       <- Try(updater.firstOption)
+            validValue     <- cell.tryCast(value)
+            numUpdates     <- Try(updater.update(validValue))
           } yield Update(columnName, oldValue, validValue, numUpdates)
 
           tried.toEither.left.map {
@@ -55,11 +57,10 @@ trait crudActions extends queryParser with namedCells {
       sequence(results)
     }
 
-    private def namedCells(q: Q)(implicit e: CellRow[_]): Seq[NamedCell] =
-      QueryParser.columnNames(q).zip(e.cells).map{
-        case (columnName, cell) => NamedCell(columnName, cell)
+    private def untypedCellsForQuery(q: Q)(implicit e: CellRow[_]): Seq[(ColumnName, Cell[Any])] =
+      QueryParser.columnNames(q).map(_.c).zip(e.cells).map {
+        case (colName, cell) => (colName, cell.asInstanceOf[Cell[Any]])
       }
-
 
     /**
      * Given a row from a query, extract the lifted.Column[_] with name 'name'
