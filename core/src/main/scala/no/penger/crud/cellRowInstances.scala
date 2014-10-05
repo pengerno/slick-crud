@@ -1,13 +1,6 @@
 package no.penger.crud
 
-/**
- * Add support for tuples out of the box
- */
 trait cellRowInstances extends cells {
-
-  trait CellRowProduct[P <: Product] extends CellRow[P] {
-    def list(e: P): List[Any] = e.productIterator.toList
-  }
 
   /**
    * Use this to use tables mapped to a non-tuple structure.
@@ -18,6 +11,13 @@ trait cellRowInstances extends cells {
       override def list(e: Mapped) = wrapped.list(unapply(e).get)
       override def cells           = wrapped.cells
     }
+
+  /**
+   * Add support for tuples out of the box
+   */
+  trait CellRowProduct[P <: Product] extends CellRow[P] {
+    def list(e: P): List[Any] = e.productIterator.toList
+  }
 
   private def c[A: Cell]: Cell[A] = implicitly[Cell[A]]
 

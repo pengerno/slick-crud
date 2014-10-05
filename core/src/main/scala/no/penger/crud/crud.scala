@@ -6,7 +6,12 @@ package object crud {
 
   trait CrudAbstract extends editors with cellRowInstances
 
-  trait Crud extends CrudAbstract with html.cellInstances with html.viewHtml with logging.updateNotifierLogging
+  trait Crud
+    extends CrudAbstract
+    with html.cellInstances
+    with html.viewHtml
+    with http.unfilteredIntegration
+    with logging.updateNotifierLogging
 
   case class Update(column: ColumnName, oldValue: Option[Any], newValue: Any, numUpdated: Int)
 

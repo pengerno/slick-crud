@@ -6,7 +6,7 @@ import scala.util.Try
 trait crudActions extends queryParser with namedCells {
   import profile.simple._
 
-  object databaseAction {
+  object crudAction {
     /* fetches rows from db and renders them using the cells provided in cells() */
     def read[T, PROJECTION](ctx:      String,
                             pks:      Set[TableColumn],
@@ -98,8 +98,8 @@ trait crudActions extends queryParser with namedCells {
         row.productIterator.map(_.asInstanceOf[Column[Any]]).zipWithIndex.map {
           case (c, idx) =>
             val qq = q.map(_.asInstanceOf[Product].productElement(idx).asInstanceOf[Column[Any]])
-            val ExtractColName(_, colname) = qq.selectStatement
-            (c, ColumnName(colname))
+            val ExtractColName(_, colName) = qq.selectStatement
+            (c, ColumnName(colName))
         }.toSeq
     }
 
@@ -118,7 +118,7 @@ trait crudActions extends queryParser with namedCells {
 
         def nameOfColumn(c: Column[Any]): ColumnName = QueryParser.columnNames.columnsFor(c.toNode).head
 
-        /* this was my best shot at getting at all the rows defined as defs and vals */
+        /* this was my best shot at getting at all the columns defined as defs and vals */
         val foundCols = reflected.symbol.asType.toType.members.collect {
           case m if m.typeSignature.resultType.typeConstructor =:= typeOf[slick.lifted.Column[Any]].typeConstructor =>
 

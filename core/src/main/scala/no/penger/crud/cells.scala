@@ -38,5 +38,4 @@ trait cells extends viewFormat {
     def cells:List[Cell[_]]
     def list(e:PROJECTION):List[Any]
   }
-
 }

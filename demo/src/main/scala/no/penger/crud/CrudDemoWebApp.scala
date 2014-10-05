@@ -1,8 +1,6 @@
 package no.penger
 package crud
 
-import java.io.InputStream
-
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
@@ -72,7 +70,7 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
 }
 
 trait StoreCrudPlan extends StoreTables with Crud {
-  object crudPlan extends Plan {
+  object crudPlan extends CrudPlan {
 
     /**
      * we need to provide cell instanced for every type we expose through slick-crud,
@@ -95,26 +93,32 @@ trait StoreCrudPlan extends StoreTables with Crud {
     object notifier extends UpdateNotifierLogging with LazyLogging
 
     /* not editable, sorted by name*/
-    private lazy val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
-    /* projection */
-    private lazy val products  = Editor("/products",  Products,  notifier)(_.map(t => (t.id, t.name, t.soldByRef)), _.id)
+    private val employees = Editor(Employees, notifier, isEditable = false)(_.sortBy(_.name.asc), _.id)
+
+    /* tuple projection */
+    private val products  = Editor(Products,  notifier)(_.map(t => (t.id, t.soldByRef, t.name)), _.id)
+
     /* no custom query, but has foreign keys to employees and products */
-    private lazy val stores    = Editor("/stores",    Stores,    notifier)(identity, _.id).sub(
+    private val stores    = Editor(Stores, notifier)(identity, _.id).sub(
       employees.on(_.worksAtRef),
       products.on(_.soldByRef)
       //todo: single something
     )
 
-    val resourceIntent: Plan.Intent = {
+    override val editors = Map(
+      "/employees" → employees,
+      "/products"  → products,
+      "/stores"    → stores
+    )
+
+    override val resourceIntent: Plan.Intent = {
       /* dont do this at home etc */
       case req@GET(ContextPath(ctx, resource)) =>
-        val maybeStream: Option[InputStream] = Option(classOf[StoreCrudPlan].getResourceAsStream(resource))
-        maybeStream.fold[ResponseFunction[Any]](NotFound) (
+        val optStream = Option(classOf[StoreCrudPlan].getResourceAsStream(resource))
+        optStream.fold[ResponseFunction[Any]](NotFound) (
           is => Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
         )
     }
-
-    val intent = employees.intent orElse products.intent orElse stores.intent orElse resourceIntent
   }
 
   override def respond(ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx, title)(body))
