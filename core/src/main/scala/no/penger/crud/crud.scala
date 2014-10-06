@@ -11,7 +11,6 @@ package object crud {
     with html.cellInstances
     with html.viewHtml
     with http.unfilteredIntegration
-    with logging.updateNotifierLogging
 
   case class Update(column: ColumnName, oldValue: Option[Any], newValue: Any, numUpdated: Int)
 
