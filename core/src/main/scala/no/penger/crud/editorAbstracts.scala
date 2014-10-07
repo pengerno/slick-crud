@@ -2,6 +2,7 @@ package no.penger.crud
 
 trait editorAbstracts extends viewFormat with cells {
   trait EditorAbstract[ID] {
+    def mounted: String
     def idCell: Cell[ID]
     def tableName: TableName
     def view(baseUrl: String): PageFormat

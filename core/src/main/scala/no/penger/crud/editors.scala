@@ -38,15 +38,17 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
      *
      */
     def apply[ROW <: AbstractTable[_], LP : ClassTag, P : CellRow, ID: Cell : BaseColumnType]
-      (table:      TableQuery[ROW],
+      (mounted:    String,
+       table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
        isEditable: Boolean            = true)
       (query:      Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
        pk:         ROW => Column[ID]) =
-        new Editor[ROW, LP, P, ID](table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
+        new Editor[ROW, LP, P, ID](mounted, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
   }
 
   case class Editor[ROW <: AbstractTable[_], LP : ClassTag, P: CellRow, ID: Cell : BaseColumnType] (
+      mounted:      String,
       table:        Query[ROW, ROW#TableElementType, Seq],
       query:        Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
       pk:           ROW => Column[ID],
@@ -64,6 +66,8 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
+    def base(ctx: String) = ctx + mounted
+
     val primaryKeys = QueryParser.primaryKeys(table.map(pk))
     val tableName   = QueryParser.tableNameFrom(table)
 
@@ -72,28 +76,28 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
-    def view(baseUrl: String) = {
+    def view(ctx: String) = {
       val rows        = db.withSession(
-        implicit s => crudAction.read(baseUrl, primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
+        implicit s => crudAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
       )
       val columnNames = QueryParser.columnNames(query(table))
 
-      val view        = View(baseUrl, uniqueId, tableName, columnNames)
+      val view        = View(base(ctx), uniqueId, tableName, columnNames)
 
       if (isOnlyOneRow) view.rowOpt(None, rows.headOption)
       else              view.many(rows)
     }
 
-    def viewRow(baseUrl: String, id:ID) = {
+    def viewRow(ctx: String, id:ID) = {
       val selectQuery = query(table.filter(pk(_) === id))
       val rowOpt      = db.withSession(
-        implicit s => crudAction.read(baseUrl, primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
+        implicit s => crudAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
       )
       val columnNames = QueryParser.columnNames(selectQuery)
 
-      val view = View(baseUrl, uniqueId, tableName, columnNames).rowOpt(Some(idCell.fixed(id)), rowOpt)
+      val view = View(base(ctx), uniqueId, tableName, columnNames).rowOpt(Some(idCell.fixed(id)), rowOpt)
 
-      editors.map(_(id).view(baseUrl)).foldLeft(view)(append)
+      editors.map(_(id).view(ctx)).foldLeft(view)(append)
     }
 
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {

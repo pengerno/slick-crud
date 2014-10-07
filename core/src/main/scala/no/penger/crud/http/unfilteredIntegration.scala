@@ -4,17 +4,16 @@ package http
 import unfiltered.filter.Plan
 import unfiltered.filter.Plan.Intent
 import unfiltered.filter.request.ContextPath
-import unfiltered.request.{&, GET, POST, Params, Seg}
+import unfiltered.request._
 import unfiltered.response._
 
 trait unfilteredIntegration extends editorAbstracts {
 
   def respond(ctx: String, title: String)(body: PageFormat): ResponseFunction[Any]
 
-  class EditorUnfiltered[ID](mount: String, editor: EditorAbstract[ID]){
+  case class EditorUnfiltered[ID](editor: EditorAbstract[ID]){
 
-    val MountedAt = Seg.unapply(mount).get
-    def base(ctx: String) = (ctx :: MountedAt).mkString("/")
+    val MountedAt = Seg.unapply(editor.mounted).get
 
     /* extract id from url */
     object Id {
@@ -28,11 +27,11 @@ trait unfilteredIntegration extends editorAbstracts {
     def intent:Plan.Intent = {
 
       case req@GET(ContextPath(ctx, Seg(MountedAt))) =>
-        respond(ctx, title = MountedAt.head)(editor.view(base(ctx)))
+        respond(ctx, title = MountedAt.head)(editor.view(ctx))
 
       case req@GET(ContextPath(ctx, Seg(Id(id)))) =>
         respond(ctx, title = s"${editor.tableName} for $id") (
-          editor.viewRow(base(ctx), id)
+          editor.viewRow(ctx, id)
         )
 
       case req@POST(ContextPath(_, Seg(Id(id)))) & Params(params) =>
@@ -50,9 +49,9 @@ trait unfilteredIntegration extends editorAbstracts {
 
 
   trait CrudPlan extends Plan {
-    def editors: Map[String, EditorAbstract[_]]
+    def editors: Seq[EditorAbstract[_]]
     def resourceIntent: Intent
-    lazy val editorIntents = editors.map{case (mount, r) => new EditorUnfiltered(mount, r)}.map(_.intent).toSeq
+    lazy val editorIntents = editors.map(new EditorUnfiltered(_)).map(_.intent).toSeq
     override lazy val intent = (editorIntents :+ resourceIntent).reduce(_ orElse _)
   }
 }

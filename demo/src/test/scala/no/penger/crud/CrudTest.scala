@@ -66,29 +66,29 @@ class CrudTest
   }
 
   test("view()"){
-    val e = Editor(Products)(identity, _.id)
+    val e = Editor("mounted", Products)(identity, _.id)
 
     /* check that view contains both */
-    containAssert(shouldContain = true, e.view("base"), n1.asString)
-    containAssert(shouldContain = true, e.view("base"), n2.asString)
+    containAssert(shouldContain = true, e.view("ctx"), n1.asString)
+    containAssert(shouldContain = true, e.view("ctx"), n2.asString)
   }
 
   test("view(id)"){
-    val e = Editor(Products)(identity, _.id)
+    val e = Editor("mounted", Products)(identity, _.id)
 
     /* check that asking for one id only returns values for that product*/
-    containAssert(shouldContain = true,  e.viewRow("base", pid1), n1.asString)
-    containAssert(shouldContain = false, e.viewRow("base", pid1), n2.asString)
+    containAssert(shouldContain = true,  e.viewRow("ctx", pid1), n1.asString)
+    containAssert(shouldContain = false, e.viewRow("ctx", pid1), n2.asString)
 
-    containAssert(shouldContain = false, e.viewRow("base", pid2), n1.asString)
-    containAssert(shouldContain = true,  e.viewRow("base", pid2), n2.asString)
+    containAssert(shouldContain = false, e.viewRow("ctx", pid2), n1.asString)
+    containAssert(shouldContain = true,  e.viewRow("ctx", pid2), n2.asString)
 
-    containAssert(shouldContain = false, e.viewRow("base", ProductId(-1)), n1.asString)
-    containAssert(shouldContain = false, e.viewRow("base", ProductId(-1)), n2.asString)
+    containAssert(shouldContain = false, e.viewRow("ctx", ProductId(-1)), n1.asString)
+    containAssert(shouldContain = false, e.viewRow("ctx", ProductId(-1)), n2.asString)
   }
 
   test("view(id) for projection"){
-    val e = Editor(Products)(_.map(p => (p.quantity, p.name)), _.id)
+    val e = Editor("mounted", Products)(_.map(p => (p.quantity, p.name)), _.id)
 
     val tableName = TableName("products")
     val expected = Seq(
@@ -99,17 +99,17 @@ class CrudTest
       )
     )
 
-    assert(e.viewRow("base", pid1) === expected)
+    assert(e.viewRow("ctx", pid1) === expected)
   }
 
   test("update (class => tuple) editor"){
-    val e   = Editor(Products, failOnUpdateFail)(_.map(r => (r.id, r.name)), _.id)
+    val e   = Editor("mounted", Products, failOnUpdateFail)(_.map(r => (r.id, r.name)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, 100, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString)))
-    assert(e.viewRow("base", pid).head.content === expected)
+    assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
   test("update (tuple => tuple) editor"){
@@ -122,43 +122,43 @@ class CrudTest
     }
     val Products2 = TableQuery[ProductT2]
 
-    val e   = Editor(Products2, failOnUpdateFail)(_.map(r => (r.quantity, r.name)), _.id)
+    val e   = Editor("mounted", Products2, failOnUpdateFail)(_.map(r => (r.quantity, r.name)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
-    assert(e.viewRow("base", pid).head.content === expected)
+    assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
   test("update (class => class) editor"){
-    val e   = Editor(Products, failOnUpdateFail)(identity, _.id)
+    val e   = Editor("mounted", Products, failOnUpdateFail)(identity, _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, q1.toString, storeId.id)))
-    assert(e.viewRow("base", pid).head.content === expected)
+    assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
   test("only update chosen columns"){
-    val e   = Editor(Products, failOnUpdateSucceed)(_.map(r => (r.id, r.soldByRef)), _.id)
+    val e   = Editor("mounted", Products, failOnUpdateSucceed)(_.map(r => (r.id, r.soldByRef)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, 100, storeId)))
     e.update(pid, Map(ColumnName("name") → n3.asString))
   }
 
   test("update when id column not selected"){
-    val e   = Editor(Products, failOnUpdateFail)(_.map(_.name), _.id)
+    val e   = Editor("mounted", Products, failOnUpdateFail)(_.map(_.name), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Vector(n3.asString)))
-    assert(e.viewRow("base", pid).head.content === expected)
+    assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
   test("update two columns"){
-    val e   = Editor(Products, failOnUpdateFail)(identity, _.id)
+    val e   = Editor("mounted", Products, failOnUpdateFail)(identity, _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
     val newQuantity = 101
     e.update(pid,
@@ -168,7 +168,7 @@ class CrudTest
     )
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, newQuantity.toString, storeId.id)))
-    assert(e.viewRow("base", pid).head.content === expected)
+    assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
 }
