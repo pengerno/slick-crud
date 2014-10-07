@@ -99,15 +99,15 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {
       val filteredTable = table.filter(pk(_) === id)
       db.withTransaction{ implicit s =>
-        val ret = crudAction.update(filteredTable, query(filteredTable), updates)
-        ret match {
-          case Left(fails: Seq[FailedUpdate]) =>
+        crudAction.update(query(filteredTable), updates) match {
+          case l@Left(fails: Seq[FailedUpdate]) =>
             s.rollback()
             fails foreach notifier.updateFailed(tableName, id)
-          case Right(okUpdates) =>
+            l
+          case r@Right(okUpdates) =>
             okUpdates foreach notifier.updated(tableName, id)
+            r
         }
-        ret
       }
     }
   }

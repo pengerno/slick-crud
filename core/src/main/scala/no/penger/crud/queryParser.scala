@@ -12,10 +12,10 @@ trait queryParser extends slickIntegration {
 
     /* naive depth first search into a query */
     object Dfs{
-      def find[T](pf: PartialFunction[Node, T])(under: Node): Option[T] = {
+      def find[T](pf: PartialFunction[Node, T])(under: Node): Option[T] =
         Some(under) collectFirst pf orElse
-          (under.nodeChildren.toStream map find(pf) collectFirst { case Some(found) => found})
-      }
+          (under.nodeChildren map find(pf) collectFirst { case Some(found) => found})
+
       def get[T](pf: PartialFunction[Node, T])(under: Node): T = find(pf)(under).get
     }
 
@@ -30,6 +30,10 @@ trait queryParser extends slickIntegration {
       def colsFromQuery(cols: Node): Seq[ColumnName] = cols match {
         /* return column names */
         case TableExpansion(_, _, colNames) => columnsFor(colNames)
+
+        /* we hit this branch as a fake select for queries without a projection but with a filter, hope it wont destroy anything to ignore it */
+        case Bind(_, from, Pure(Ref(_), _)) => colsFromQuery(from)
+
         /* select a subset of the columns (that we iterate further to find definitions for) */
         case Bind(_, from, selects) => selectFrom(selects, colsFromQuery(from))
 

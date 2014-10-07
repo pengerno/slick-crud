@@ -29,21 +29,20 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    def update(verifyQ: Q,
-               updateQ: Q,
+    def update(q: Q,
                updates: Map[ColumnName, String])
      (implicit s:       Session,
                cr:      CellRow[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
-      val untypedCells = untypedCellsForQuery(verifyQ)
+      val untypedCells = untypedCellsForQuery(q)
 
       val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
         case (columnName, value) =>
           val tried: Try[Update] = for {
             cell           <- untypedCells.collectFirst {
               case (`columnName`, cell) => cell
-            }.toTry(s"table ${QueryParser.tableNameFrom(updateQ)} does not have a column $columnName")
-            updater        <- Try(updateQ.map(row => columnFromRowWithName(updateQ, row, columnName)))
+            }.toTry(s"table ${QueryParser.tableNameFrom(q)} does not have a column $columnName")
+            updater        <- Try(q.map(row => columnFromRowWithName(q, row, columnName)))
             oldValue       <- Try(updater.firstOption)
             validValue     <- cell.tryCast(value)
             numUpdates     <- Try(updater.update(validValue))
@@ -66,10 +65,11 @@ trait crudActions extends queryParser with cells {
      * Given a row from a query, extract the lifted.Column[_] with name 'name'
      */
     private def columnFromRowWithName[R](q: Query[R, _, Seq], row: R, name: ColumnName): Column[Any] = {
-      val rowsWithNames = row match {
+      val rowsWithNames: Seq[(Column[Any], ColumnName)] = row match {
         /* a projection to a tuple */
         case p:          Product          => ExtractColumnFromProductProjection(q, p)
         case slickTable: AbstractTable[_] => ExtractColumnsFromSlickTable(slickTable)
+        case c: Column[_]                 => ExtractSoloColumn(q, c)
       }
 
       rowsWithNames collectFirst {
@@ -79,9 +79,19 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    object ExtractColumnFromProductProjection {
+    trait ColumnTextExtractor{
       val ExtractColName = """select (\w+\.)?(\w*) from.*""".r
+    }
 
+    /* if there is only one column in the query this is what we get */
+    object ExtractSoloColumn extends ColumnTextExtractor {
+      def apply(q: Q, c: Column[_]) = {
+        val ExtractColName(_, colName) = q.selectStatement
+        Seq((c.asInstanceOf[Column[Any]], ColumnName(colName)))
+      }
+    }
+
+    object ExtractColumnFromProductProjection extends ColumnTextExtractor {
       /**
        * This was particularly difficult to figure out. The 'Product' is a TupleN of Column[_]s.
        *

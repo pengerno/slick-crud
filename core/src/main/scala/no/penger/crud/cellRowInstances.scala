@@ -7,9 +7,9 @@ trait cellRowInstances extends cells {
    **/
   def mappedCellRow[Mapped, Tupled <: Product : CellRow](unapply: Mapped => Option[Tupled]) =
     new CellRow[Mapped] {
-      private val wrapped          = implicitly[CellRow[Tupled]]
+      private val wrapped                  = implicitly[CellRow[Tupled]]
       override def unpackValues(e: Mapped) = wrapped.unpackValues(unapply(e).get)
-      override def cells           = wrapped.cells
+      override def cells                   = wrapped.cells
     }
 
   /**

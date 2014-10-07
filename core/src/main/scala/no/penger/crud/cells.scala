@@ -36,6 +36,13 @@ trait cells extends viewFormat {
   @annotation.implicitNotFound("Couldn't find cell instances for all the types in projection ${PROJECTION}")
   trait CellRow[PROJECTION]{
     def cells:List[Cell[_]]
+
+    /* given an instance of 'PROJECTION', pick out the fields that correspond to each cell in 'cells' */
     def unpackValues(e:PROJECTION):List[Any]
+  }
+
+  implicit def singleRow[T](implicit c: Cell[T]): CellRow[T] = new CellRow[T]{
+    override def cells = List(c)
+    override def unpackValues(e: T): List[Any] = List(e)
   }
 }
