@@ -1,3 +1,4 @@
+
 package no.penger.crud
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -13,17 +14,10 @@ import scala.util.Try
  */
 class CrudTest
   extends FunSuite with TypeCheckedTripleEquals
-  with CrudAbstract with testView                       /* crud with concretization */
+  with CrudAbstract with testView with testCells        /* crud with concretization */
   with StoreTables                                      /* test tables */
   with LiquibaseH2TransactionComponent with LazyLogging /* h2 with tables */
 {
-
-  def stringCell[E](toStr: E ⇒ String, fromStr: String ⇒ E) = new Cell[E] {
-    override def link(ctx: String, e: E) = toStr(e)
-    override def editable(e: E) = toStr(e)
-    override def tryCast(value: String) = Try(fromStr(value))
-    override def fixed(e: E) = toStr(e)
-  }
 
   implicit val t0 = stringCell[Desc](_.asString, Desc)
   implicit val t1 = stringCell[Name](_.asString, Name)
@@ -32,12 +26,25 @@ class CrudTest
   implicit val t4 = stringCell[Int](_.toString, _.toInt)
 
                                   /* my apologies, this has nothing to do with scala.Product */
-  implicit val e0 = mappedCellRow(Product.unapply)
+  implicit val e0 = mappedCellRow(Product.tupled, Product.unapply)
+  implicit val e1 = mappedCellRow(Store.tupled,   Store.unapply)
 
   import profile.simple._
 
+  /* some tests use this table in this non-projected variant*/
+  class ProductTupledT(tag: Tag) extends Table[(ProductId, Name, Int, StoreId)](tag, "products") {
+    def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
+    def name      = column[Name]     ("name")
+    def quantity  = column[Int]      ("quantity")
+    def soldByRef = column[StoreId]  ("sold_by")
+    def *        = (id, name, quantity, soldByRef)
+  }
+  val ProductsTupled = TableQuery[ProductTupledT]
+
+
   /* some utility functions */
-  def insertProduct(p: Product)(implicit s: Session): ProductId = (Products returning Products.map(_.id)).insert(p)
+  def insertProduct(p: Product)(implicit s: Session): ProductId =
+    (Products returning Products.map(_.id)).insert(p)
 
   def containAssert(shouldContain: Boolean, haystack: PageFormat, needle: String) = {
     assert(shouldContain == (haystack./*YOLO*/toString() contains needle), haystack)
@@ -51,12 +58,13 @@ class CrudTest
   }
 
   /* some test data */
-  val storeId = StoreId("store")
-  val ignore  = ProductId(Int.MaxValue)
-  val n1      = Name("amazing product")
-  val n2      = Name("nights")
-  val n3      = Name("new name for product three")
-  val q1      = 100
+  val ignoreMounted = "mounted"
+  val storeId       = StoreId("store")
+  val ignore        = ProductId(Int.MaxValue)
+  val n1            = Name("amazing product")
+  val n2            = Name("nights")
+  val n3            = Name("new name for product three")
+  val q1            = 100
 
   val (pid1, pid2) = db.withSession{implicit s =>
     Stores.insert(Store(storeId, Name("store"), None))
@@ -66,7 +74,7 @@ class CrudTest
   }
 
   test("view()"){
-    val e = Editor("mounted", Products)(identity, _.id)
+    val e = Editor(ignoreMounted, Products)(identity, _.id)
 
     /* check that view contains both */
     containAssert(shouldContain = true, e.view("ctx"), n1.asString)
@@ -74,7 +82,7 @@ class CrudTest
   }
 
   test("view(id)"){
-    val e = Editor("mounted", Products)(identity, _.id)
+    val e = Editor(ignoreMounted, Products)(identity, _.id)
 
     /* check that asking for one id only returns values for that product*/
     containAssert(shouldContain = true,  e.viewRow("ctx", pid1), n1.asString)
@@ -88,7 +96,7 @@ class CrudTest
   }
 
   test("view(id) for projection"){
-    val e = Editor("mounted", Products)(_.map(p => (p.quantity, p.name)), _.id)
+    val e = Editor(ignoreMounted, Products)(_.map(p => (p.quantity, p.name)), _.id)
 
     val tableName = TableName("products")
     val expected = Seq(
@@ -103,7 +111,7 @@ class CrudTest
   }
 
   test("update (class => tuple) editor"){
-    val e   = Editor("mounted", Products, failOnUpdateFail)(_.map(r => (r.id, r.name)), _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(_.map(r => (r.id, r.name)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, 100, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
@@ -114,15 +122,18 @@ class CrudTest
 
   test("update (tuple => tuple) editor"){
 
-    class ProductT2(tag: Tag) extends Table[(Name, Int)](tag, "products") {
-      def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
-      def name      = column[Name]     ("name")
-      def quantity  = column[Int]      ("quantity")
-      def *        = (name, quantity)
-    }
-    val Products2 = TableQuery[ProductT2]
+    val e   = Editor(ignoreMounted, ProductsTupled, failOnUpdateFail)(_.map(r => (r.quantity, r.name)), _.id)
+    val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
-    val e   = Editor("mounted", Products2, failOnUpdateFail)(_.map(r => (r.quantity, r.name)), _.id)
+    e.update(pid, Map(ColumnName("name") → n3.asString))
+
+    val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
+    assert(e.viewRow("ctx", pid).head.content === expected)
+  }
+
+  test("update (tuple => sorted tuple) editor"){
+
+    val e   = Editor(ignoreMounted, ProductsTupled, failOnUpdateFail)(_.sortBy(_.quantity).map(r => (r.quantity, r.name)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
@@ -132,7 +143,7 @@ class CrudTest
   }
 
   test("update (class => class) editor"){
-    val e   = Editor("mounted", Products, failOnUpdateFail)(identity, _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(identity, _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
@@ -141,20 +152,20 @@ class CrudTest
     assert(e.viewRow("ctx", pid).head.content === expected)
   }
 
-  test("only update chosen columns"){
-    val e   = Editor("mounted", Products, failOnUpdateSucceed)(_.map(r => (r.id, r.soldByRef)), _.id)
+  test("update only chosen columns"){
+    val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(_.map(r => (r.id, r.soldByRef)), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, 100, storeId)))
     e.update(pid, Map(ColumnName("name") → n3.asString))
   }
 
   test("update only valid id") {
-    val e   = Editor("mounted", Products, failOnUpdateSucceed)(identity, _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(identity, _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
     e.update(ProductId(10001), Map(ColumnName("name") → n3.asString))
   }
 
   test("update when id column not selected"){
-    val e   = Editor("mounted", Products, failOnUpdateFail)(_.map(_.name), _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(_.map(_.name), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
 
     e.update(pid, Map(ColumnName("name") → n3.asString))
@@ -164,7 +175,7 @@ class CrudTest
   }
 
   test("update two columns"){
-    val e   = Editor("mounted", Products, failOnUpdateFail)(identity, _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(identity, _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
     val newQuantity = 101
     e.update(pid,
@@ -175,5 +186,63 @@ class CrudTest
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, newQuantity.toString, storeId.id)))
     assert(e.viewRow("ctx", pid).head.content === expected)
+  }
+
+  test("create tupled"){
+    val e   = Editor(ignoreMounted, ProductsTupled)(identity, _.id)
+    val ret: Either[Seq[Throwable], Option[ProductId]] = e.create(
+      Map[ColumnName, String](
+        ColumnName("id")        → ignore.id.toString,
+        ColumnName("name")      → n1.asString,
+        ColumnName("quantity")  → q1.toString,
+        ColumnName("sold_by")   → storeId.id.toString
+      )
+    )
+    assert(ret.isRight)
+  }
+
+  test("create class"){
+    val quantity = 256
+    val e   = Editor(ignoreMounted, Products)(_.sortBy(_.name), _.id)
+    val ret = e.create(
+      Map[ColumnName, String](
+        ColumnName("id")        → ignore.id.toString,
+        ColumnName("name")      → n1.asString,
+        ColumnName("quantity")  → quantity.toString,
+        ColumnName("sold_by")   → storeId.id.toString
+      )
+    )
+    /* test that view returns correctly after successful create*/
+    ret match {
+      case Left(fs)         ⇒ fail("couldn't update", fs.head)
+      case Right(None)      ⇒ fail("didnt get pid")
+      case Right(Some(pid)) ⇒
+        val view = e.viewRow("ctx", pid)
+        containAssert(shouldContain = true, view, quantity.toString)
+    }
+  }
+
+  test("create only with all columns specified"){
+    val e   = Editor(ignoreMounted, ProductsTupled)(_.map(r ⇒ (r.name, r.quantity, r.soldByRef)), _.id)
+    val ret = e.create(
+      Map[ColumnName, String](
+        ColumnName("id")        → ignore.id.toString,
+        ColumnName("quantity")  → q1.toString,
+        ColumnName("sold_by")   → storeId.id.toString
+      )
+    )
+    assert(Left("didn't provide value for name") === ret.left.map(_.head.getMessage))
+  }
+
+  test("create without auto-increment"){
+    val e   = Editor(ignoreMounted, Stores)(identity, _.id)
+    val ret = e.create(
+      Map[ColumnName, String](
+        ColumnName("id")          → StoreId("storeId").id,
+        ColumnName("name")        → "my store",
+        ColumnName("description") → storeId.id.toString
+      )
+    )
+    assert(Right(None) === ret)
   }
 }

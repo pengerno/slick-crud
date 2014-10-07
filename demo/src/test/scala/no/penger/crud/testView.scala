@@ -26,5 +26,7 @@ trait testView extends view {
 
     override def rowOpt(id: Option[String], rowOpt: Option[Row]) =
       Seq(TestView(tableName, columnNames, Left(id, rowOpt)))
+
+    override def newPage: PageFormat = Seq.empty
   }
 }

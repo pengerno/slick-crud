@@ -36,9 +36,9 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id       = column[StoreId]("id")
     def name     = column[Name]   ("name")
-    def address  = column[Desc]   ("description").?
+    def descr    = column[Desc]   ("description").?
 
-    def *        = (id, name, address) <> (Store.tupled, Store.unapply)
+    def *        = (id, name, descr) <> (Store.tupled, Store.unapply)
 
     def inventory = foreignKey("store_inventory", id.?, Products)(_.soldByRef.?)
     def employees = foreignKey("store_employees", id, Employees)(_.worksAtRef)
@@ -78,7 +78,7 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
      */
     implicit val c1 = Cell[Name](_.asString, Name)
     implicit val c2 = Cell[Desc](_.asString, Desc)
-    implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = true)
+    implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = false)
     implicit val c4 = Cell[ProductId](_.id.toString, s => ProductId(s.toLong), canEdit = false)
     implicit val c5 = Cell[EmployeeId](_.id.toString, s => EmployeeId(s.toLong), canEdit = false)
 
@@ -86,14 +86,14 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
      * These editable-instances are necessary for now in order to expose
      *  tables that have default projections to a case class for example.
      */
-    implicit val e1 = mappedCellRow(Employee.unapply)
-    implicit val e2 = mappedCellRow(Product.unapply)
-    implicit val e3 = mappedCellRow(Store.unapply)
+    implicit val e1 = mappedCellRow(Employee.tupled, Employee.unapply)
+    implicit val e2 = mappedCellRow(Product.tupled,  Product.unapply)
+    implicit val e3 = mappedCellRow(Store.tupled,    Store.unapply)
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
-    /* not editable, sorted by name*/
-    private val employees = Editor("/employees", Employees, notifier, isEditable = false)(_.sortBy(_.name.asc), _.id)
+    /* sorted by name*/
+    private val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
 
     /* tuple projection */
     private val products  = Editor("/products", Products,  notifier)(_.map(t => (t.id, t.soldByRef, t.name)), _.id)

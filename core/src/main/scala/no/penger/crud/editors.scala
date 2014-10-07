@@ -2,8 +2,9 @@ package no.penger
 package crud
 
 import java.util.UUID
-import scala.slick.lifted.AbstractTable
+
 import scala.reflect.ClassTag
+import scala.slick.lifted.AbstractTable
 
 /**
  * An editor is the glue, and about the only thing clients really need to see
@@ -37,17 +38,22 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
      * @tparam ID the primary key column, for example Column[Int]
      *
      */
-    def apply[ROW <: AbstractTable[_], LP : ClassTag, P : CellRow, ID: Cell : BaseColumnType]
+    def apply[ROW <: AbstractTable[_], LP, P, ID]
       (mounted:    String,
        table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
        isEditable: Boolean            = true)
       (query:      Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
-       pk:         ROW => Column[ID]) =
-        new Editor[ROW, LP, P, ID](mounted, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
+       pk:         ROW => Column[ID])
+      (implicit ev1:               ClassTag[LP],
+                ev2:               BaseColumnType[ID],
+                idCell:            Cell[ID],
+                tableCellRow:      CellRow[ROW#TableElementType],
+                projectionCellRow: CellRow[P]) =
+      new Editor[ROW, LP, P, ID](mounted, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[ROW <: AbstractTable[_], LP : ClassTag, P: CellRow, ID: Cell : BaseColumnType] (
+  case class Editor[ROW <: AbstractTable[_], LP, P, ID] (
       mounted:      String,
       table:        Query[ROW, ROW#TableElementType, Seq],
       query:        Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
@@ -55,7 +61,12 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
       notifier:     UpdateNotifier,
       isEditable:   Boolean,
       editors:      Seq[ID => Editor[_, _, _, _]],
-      isOnlyOneRow: Boolean) extends EditorAbstract[ID] {
+      isOnlyOneRow: Boolean)
+     (implicit ev1:               ClassTag[LP],
+               ev2:               BaseColumnType[ID],
+           val idCell:            Cell[ID],
+               tableCellRow:      CellRow[ROW#TableElementType],
+               projectionCellRow: CellRow[P]) extends EditorAbstract[ID] {
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
     def on[X : BaseColumnType](f:ROW => Column[X])(x:X) = copy(table = table.filter(f(_) === x))
@@ -70,8 +81,6 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
 
     val primaryKeys = QueryParser.primaryKeys(table.map(pk))
     val tableName   = QueryParser.tableNameFrom(table)
-
-    val idCell      = implicitly[Cell[ID]]
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
@@ -100,6 +109,11 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
       editors.map(_(id).view(ctx)).foldLeft(view)(append)
     }
 
+
+    override def viewNew(ctx: String): PageFormat = {
+      View(base(ctx), uniqueId, tableName, QueryParser.columnNames(table)).newPage
+    }
+
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {
       val filteredTable = table.filter(pk(_) === id)
       db.withTransaction{ implicit s =>
@@ -114,5 +128,13 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
         }
       }
     }
+
+    def create(params: Map[ColumnName, String]): Either[Seq[Throwable], Option[ID]] =
+      db.withTransaction{ implicit s =>
+        crudAction.create(table, pk, params).right.map{
+          case id ⇒ notifier.addedRow(tableName, id)
+            id
+        }
+      }
   }
 }

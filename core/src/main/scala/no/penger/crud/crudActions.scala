@@ -29,10 +29,10 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    def update(q: Q,
-               updates: Map[ColumnName, String])
-     (implicit s:       Session,
-               cr:      CellRow[_]): Either[Seq[FailedUpdate], Seq[Update]] = {
+    def update[T, ROW](q:       Query[T, ROW, Seq],
+                       updates: Map[ColumnName, String])
+             (implicit s:       Session,
+                       cr:      CellRow[ROW]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
       val untypedCells = untypedCellsForQuery(q)
 
@@ -54,6 +54,43 @@ trait crudActions extends queryParser with cells {
       }
 
       sequence(results)
+    }
+
+    def create[ROW <: AbstractTable[_], T, ID](table:   Query[ROW, ROW#TableElementType, Seq],
+                                               id:      ROW ⇒ Column[ID],
+                                               params:  Map[ColumnName, String])
+                                     (implicit ev1:     BaseColumnType[ID],
+                                               s:       Session,
+                                               cr:      CellRow[ROW#TableElementType]): Either[Seq[Throwable], Option[ID]] = {
+
+      val untypedCells: Seq[(ColumnName, Cell[Any])] = untypedCellsForQuery(table)
+
+      val validatedValues: Seq[Either[Throwable, Any]] = untypedCells map {
+        case (columnName, cell) ⇒
+          val tried: Try[Any] = for {
+            value      ← params.get(columnName).toTry(s"didn't provide value for $columnName")
+            validValue ← cell.tryCast(value)
+          } yield validValue
+
+          tried.toEither
+      }
+
+      sequence(validatedValues).right.flatMap {
+        validValues ⇒ {
+          val inserter = table.returning(table.map(r ⇒ id(r).?))
+          val toInsert = cr.packValues(validValues)
+          val ret      = Try(inserter.insert(toInsert))
+          ret match {
+            case util.Success(oid) ⇒ Right(oid)
+            case util.Failure(t)   ⇒
+              /* try again without return of autoincrement value*/
+              Try(table.insert(toInsert)) match {
+                case util.Success(_) ⇒ Right(None)
+                case util.Failure(t) ⇒ Left(Seq(t))
+              }
+          }
+        }
+      }
     }
 
     private def untypedCellsForQuery(q: Q)(implicit e: CellRow[_]): Seq[(ColumnName, Cell[Any])] =

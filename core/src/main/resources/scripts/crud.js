@@ -11,7 +11,7 @@ no.penger.crud.makeEditable = function(editable, onChange){
 
     editable.blur(function(){
         var self = $(this);
-        if(current != self.text()){
+        if(current != self.text() && onChange){
             onChange.call(this, self.text(), current);
         }
     });
@@ -56,6 +56,42 @@ no.penger.crud.single = function(url, root){
         })
     }
 
+    $(setup)
+};
+
+no.penger.crud.neew = function(url, root){
+    function setup(){
+        $("#submit").click(submit);
+        no.penger.crud.makeEditable($(root + ' [contenteditable=true]'), null);
+    }
+
+    function submit(){
+        /* not terribly proud of this, but its late... :)*/
+        var form = document.createElement("form");
+        form.setAttribute("method", "POST");
+        form.setAttribute("action", url + "/new");
+
+        $(root).find('tr').each(function(index) {
+            if (!index) return;
+            var id    = $($(this).find("td")[0]).text();
+            var value = $($(this).find("td")[1]).text();
+            console.debug(id);
+            console.debug(value);
+
+            var hiddenField = document.createElement("input");
+            hiddenField.setAttribute("type", "hidden");
+            hiddenField.setAttribute("name", id);
+            hiddenField.setAttribute("value", value);
+
+            form.appendChild(hiddenField);
+
+        });
+
+
+        document.body.appendChild(form);
+        form.submit();
+
+    }
     $(setup)
 };
 

@@ -39,10 +39,14 @@ trait cells extends viewFormat {
 
     /* given an instance of 'PROJECTION', pick out the fields that correspond to each cell in 'cells' */
     def unpackValues(e:PROJECTION):List[Any]
+
+    /* reconstruct a PROJECTION given a list of values */
+    def packValues(a: Seq[Any]): PROJECTION
   }
 
   implicit def singleRow[T](implicit c: Cell[T]): CellRow[T] = new CellRow[T]{
     override def cells = List(c)
+    override def packValues(vs: Seq[Any]): T = vs.head.asInstanceOf[T]
     override def unpackValues(e: T): List[Any] = List(e)
   }
 }

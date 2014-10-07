@@ -9,5 +9,6 @@ trait view extends viewFormat {
   trait View{
     def many(rows: Seq[Seq[ElemFormat]]): PageFormat
     def rowOpt(id: Option[ElemFormat], rowOpt: Option[Seq[ElemFormat]]): PageFormat
+    def newPage: PageFormat
   }
 }
