@@ -25,7 +25,7 @@ trait crudActions extends queryParser with cells {
             if (pks(name))      cell.link(ctx, value)
             else if (editable)  cell.editable(value)
             else                cell.fixed(value)
-        }.toSeq
+        }.toIndexedSeq
       }
     }
 
