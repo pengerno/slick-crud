@@ -43,7 +43,7 @@ trait crudActions extends queryParser with cells {
               case (`columnName`, cell) => cell
             }.toTry(s"table ${QueryParser.tableNameFrom(q)} does not have a column $columnName")
             updater        <- Try(q.map(row => columnFromRowWithName(q, row, columnName)))
-            oldValue       <- Try(updater.firstOption)
+            oldValue       <- Try(updater.first)
             validValue     <- cell.tryCast(value)
             numUpdates     <- Try(updater.update(validValue))
           } yield Update(columnName, oldValue, validValue, numUpdates)

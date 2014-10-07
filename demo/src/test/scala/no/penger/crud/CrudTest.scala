@@ -147,6 +147,12 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
   }
 
+  test("update only valid id") {
+    val e   = Editor("mounted", Products, failOnUpdateSucceed)(identity, _.id)
+    val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
+    e.update(ProductId(10001), Map(ColumnName("name") → n3.asString))
+  }
+
   test("update when id column not selected"){
     val e   = Editor("mounted", Products, failOnUpdateFail)(_.map(_.name), _.id)
     val pid = db.withSession(implicit s => insertProduct(Product(ignore, n2, q1, storeId)))
@@ -170,5 +176,4 @@ class CrudTest
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, newQuantity.toString, storeId.id)))
     assert(e.viewRow("ctx", pid).head.content === expected)
   }
-
 }

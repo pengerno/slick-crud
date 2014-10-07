@@ -12,7 +12,7 @@ package object crud {
     with html.viewHtml
     with http.unfilteredIntegration
 
-  case class Update(column: ColumnName, oldValue: Option[Any], newValue: Any, numUpdated: Int)
+  case class Update(column: ColumnName, oldValue: Any, newValue: Any, numUpdated: Int)
 
   case class FailedUpdate(column: ColumnName, value: String, t: Throwable)
 
