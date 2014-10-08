@@ -22,42 +22,41 @@ trait unfilteredIntegration extends editorAbstracts {
     /* extract column updates */
     object ColUpdates {
       def unapply[T](req: HttpRequest[T]) =
-        Some((Map.empty[ColumnName, String] /: req.parameterNames)((m, n) =>
-          m + (ColumnName(n) -> req.parameterValues(n).head)
+        Some(req.parameterNames.foldLeft[Map[ColumnName, String]](Map.empty)((acc, n) ⇒
+          acc + (ColumnName(n) → req.parameterValues(n).head)
         ))
     }
 
-
     def intent:Plan.Intent = {
 
-      case req@GET(ContextPath(ctx, Seg(MountedAt))) =>
+      case req@GET(ContextPath(ctx, Seg(MountedAt))) ⇒
         respond(ctx, title = MountedAt.head)(editor.view(ctx))
 
-      case req@GET(ContextPath(ctx, Seg(MountedAt :+ "new"))) =>
+      case req@GET(ContextPath(ctx, Seg(MountedAt :+ "new"))) ⇒
         respond(ctx, title = s"new ${editor.tableName}") (
           editor.viewNew(ctx)
         )
 
-      case req@POST(ContextPath(ctx, Seg(MountedAt :+ "new"))) & ColUpdates(params) =>
+      case req@POST(ContextPath(ctx, Seg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(params) match {
-          case Left(fails) =>
+          case Left(fails) ⇒
             BadRequest ~> ResponseString(fails.mkString("\n"))
-          case Right(Some(id)) =>
+          case Right(Some(id)) ⇒
             respond(ctx, s"created new ${editor.tableName}")(editor.viewRow(ctx, id))
           case Right(None) ⇒
             respond(ctx, s"created new ${editor.tableName}")(editor.view(ctx))
         }
 
-      case req@GET(ContextPath(ctx, Seg(MountedAt :+ Id(id)))) =>
+      case req@GET(ContextPath(ctx, Seg(MountedAt :+ Id(id)))) ⇒
         respond(ctx, title = s"${editor.tableName} for $id") (
           editor.viewRow(ctx, id)
         )
 
-      case req@POST(ContextPath(_, Seg(MountedAt :+ Id(id)))) & ColUpdates(updates) =>
+      case req@POST(ContextPath(_, Seg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
         editor.update(id, updates) match {
-          case Left(fails: Seq[FailedUpdate]) =>
+          case Left(fails: Seq[FailedUpdate]) ⇒
             BadRequest ~> ResponseString(fails.mkString("\n"))
-          case Right(okUpdates) =>
+          case Right(okUpdates) ⇒
             Ok ~> ResponseString(okUpdates.mkString("\n"))
         }
     }

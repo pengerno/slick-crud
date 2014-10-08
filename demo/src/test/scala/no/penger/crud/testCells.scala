@@ -9,8 +9,8 @@ trait testCells extends cells with testView {
     def fixed(oe: Option[A]) = oe map wrapped.fixed getOrElse ""
 
     def tryCast(value: String): util.Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
-      case Some(v) => wrapped.tryCast(value).map(Some(_))
-      case None    => util.Success(None)
+      case Some(v) ⇒ wrapped.tryCast(value).map(Some(_))
+      case None    ⇒ util.Success(None)
     }
   }
 

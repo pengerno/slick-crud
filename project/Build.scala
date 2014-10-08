@@ -18,7 +18,7 @@ object Build extends sbt.Build {
     crossScalaVersions := Seq("2.10.4", "2.11.2"),
     publishMavenStyle  := true,
     publish <<= deploy,
-    publishTo <<= version { v =>
+    publishTo <<= version { v ⇒
       val proxy = "http://mavenproxy.finntech.no/finntech-internal-"
       val end = if(v endsWith "SNAPSHOT") "snapshot" else "release"
       Some("Finn-" + end at proxy + end)

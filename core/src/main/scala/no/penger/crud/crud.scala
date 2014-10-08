@@ -26,16 +26,16 @@ package object crud {
 
   def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
-      case (Right(acc), Right(u)) => Right(acc :+ u)
-      case (Left(acc),  Left(f))  => Left(acc :+ f)
-      case (Left(acc),  _)        => Left(acc)
-      case (_,          Left(f))  => Left(Seq(f))
+      case (Right(acc), Right(u)) ⇒ Right(acc :+ u)
+      case (Left(acc),  Left(f))  ⇒ Left(acc :+ f)
+      case (Left(acc),  _)        ⇒ Left(acc)
+      case (_,          Left(f))  ⇒ Left(Seq(f))
     }
 
   implicit class EitherToTry[T](val e: Try[T]) extends AnyVal {
     def toEither = e match {
-      case Success(t) => Right(t)
-      case Failure(f) => Left(f)
+      case Success(t) ⇒ Right(t)
+      case Failure(f) ⇒ Left(f)
     }
   }
 

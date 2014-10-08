@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 
 trait updateNotifierLogging extends updateNotifier {
   trait UpdateNotifierLogging extends UpdateNotifier {
-    self: LazyLogging =>
+    self: LazyLogging ⇒
 
     override def updated[ID, T](t: TableName, id: ID)(u: Update) =
       logger.info(s"updated table $t for row $id for column ${u.column} from ${u.oldValue} to ${u.newValue}")

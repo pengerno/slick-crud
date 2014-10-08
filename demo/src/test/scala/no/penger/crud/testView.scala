@@ -15,8 +15,8 @@ trait testView extends view {
     def id = content.left.map(_._1)
 
     def rows = content match {
-      case Left((id, row)) => row.toSeq
-      case Right(rows)     => rows
+      case Left((id, row)) ⇒ row.toSeq
+      case Right(rows)     ⇒ rows
     }
   }
 

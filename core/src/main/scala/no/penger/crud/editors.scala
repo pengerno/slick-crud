@@ -43,8 +43,8 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
        table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
        isEditable: Boolean            = true)
-      (query:      Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
-       pk:         ROW => Column[ID])
+      (query:      Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
+       pk:         ROW ⇒ Column[ID])
       (implicit ev1:               ClassTag[LP],
                 ev2:               BaseColumnType[ID],
                 idCell:            Cell[ID],
@@ -56,11 +56,11 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
   case class Editor[ROW <: AbstractTable[_], LP, P, ID] (
       mounted:      String,
       table:        Query[ROW, ROW#TableElementType, Seq],
-      query:        Query[ROW, ROW#TableElementType, Seq] => Query[LP, P, Seq],
-      pk:           ROW => Column[ID],
+      query:        Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
+      pk:           ROW ⇒ Column[ID],
       notifier:     UpdateNotifier,
       isEditable:   Boolean,
-      editors:      Seq[ID => Editor[_, _, _, _]],
+      editors:      Seq[ID ⇒ Editor[_, _, _, _]],
       isOnlyOneRow: Boolean)
      (implicit ev1:               ClassTag[LP],
                ev2:               BaseColumnType[ID],
@@ -69,10 +69,10 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
                projectionCellRow: CellRow[P]) extends EditorAbstract[ID] {
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
-    def on[X : BaseColumnType](f:ROW => Column[X])(x:X) = copy(table = table.filter(f(_) === x))
+    def on[X : BaseColumnType](f:ROW ⇒ Column[X])(x:X) = copy(table = table.filter(f(_) === x))
 
     /* return a new editor with referenced subeditors */
-    def sub(editors:(ID => Editor[_, _, _, _])*) = copy(editors = editors)
+    def sub(editors:(ID ⇒ Editor[_, _, _, _])*) = copy(editors = editors)
 
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
@@ -87,7 +87,7 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
 
     def view(ctx: String) = {
       val rows        = db.withSession(
-        implicit s => crudAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ => isOnlyOneRow))
+        implicit s ⇒ crudAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ ⇒ isOnlyOneRow))
       )
       val columnNames = QueryParser.columnNames(query(table))
 
@@ -100,7 +100,7 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     def viewRow(ctx: String, id:ID) = {
       val selectQuery = query(table.filter(pk(_) === id))
       val rowOpt      = db.withSession(
-        implicit s => crudAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
+        implicit s ⇒ crudAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
       )
       val columnNames = QueryParser.columnNames(selectQuery)
 
@@ -116,13 +116,13 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
 
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {
       val filteredTable = table.filter(pk(_) === id)
-      db.withTransaction{ implicit s =>
-        crudAction.update(query(filteredTable), updates) match {
-          case l@Left(fails: Seq[FailedUpdate]) =>
+      db.withTransaction{ implicit s ⇒
+        crudAction.update(query(filteredTable), filteredTable, updates) match {
+          case l@Left(fails: Seq[FailedUpdate]) ⇒
             s.rollback()
             fails foreach notifier.updateFailed(tableName, id)
             l
-          case r@Right(okUpdates) =>
+          case r@Right(okUpdates) ⇒
             okUpdates foreach notifier.updated(tableName, id)
             r
         }
@@ -130,7 +130,7 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     }
 
     def create(params: Map[ColumnName, String]): Either[Seq[Throwable], Option[ID]] =
-      db.withTransaction{ implicit s =>
+      db.withTransaction{ implicit s ⇒
         crudAction.create(table, pk, params).right.map{
           case id ⇒ notifier.addedRow(tableName, id)
             id

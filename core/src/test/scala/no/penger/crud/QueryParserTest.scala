@@ -11,7 +11,7 @@ class QueryParserTest
   def db = ???
   import profile.simple._
 
-  def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] => R) = {
+  def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
     assertResult(shouldEqual, q.selectStatement)(op(q))
   }
 
@@ -43,11 +43,11 @@ class QueryParserTest
   }
 
   test("understand map to two columns "){
-    myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq(c("two"), c("three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].map(t ⇒ (t.two, t.three)), Seq(c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("understand map / nested projections "){
-    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t => (t.two, t.three)).map(_._1), Seq(c("two")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t ⇒ (t.two, t.three)).map(_._1), Seq(c("two")))(QueryParser.columnNames)
   }
 
   test("understand case class projection"){
@@ -56,6 +56,15 @@ class QueryParserTest
 
   test("understand query"){
     myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
+  }
+
+  test("understand query with join"){
+    class TT(tag: Tag) extends Table[String](tag, "t2") {
+      def one   = column[String]("one")
+      def * = one
+    }
+    myAssert(TableQuery[OneTwoThreeST].join(TableQuery[TT]).on(_.one === _.one).map(_._1),
+             Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("get tablename"){

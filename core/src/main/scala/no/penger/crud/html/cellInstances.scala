@@ -7,8 +7,8 @@ import scala.util.{Success, Try}
 trait cellInstances extends cells with viewFormatHtml {
 
   /* simple creation and standard rendering */
-  def Cell[T: ClassTag](from:      T => String,
-                        to:        String => T,
+  def Cell[T: ClassTag](from:      T      ⇒ String,
+                        to:        String ⇒ T,
                         canEdit:   Boolean      = true,
                         alignment: String       = "right") = new ValueCell[T]{
     def link(ctx: String, e: T)       = <td align={alignment}><a href={ctx + "/" + from(e)}>{from(e)}</a></td>
@@ -20,7 +20,7 @@ trait cellInstances extends cells with viewFormatHtml {
   /* handling of optional values*/
   implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = new Cell[Option[A]] {
     def link(ctx: String, e: Option[A]) =
-      e.map(v => wrapped.link(ctx, v)).getOrElse(fixed(e))
+      e.map(v ⇒ wrapped.link(ctx, v)).getOrElse(fixed(e))
 
     def editable(e: Option[A]) =
       e.map(wrapped.editable).getOrElse(<td contenteditable="true" align="right"></td>)
@@ -29,8 +29,8 @@ trait cellInstances extends cells with viewFormatHtml {
       e.map(wrapped.fixed).getOrElse(<td align="right"></td>)
 
     def tryCast(value: String): Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
-      case Some(v) => wrapped.tryCast(value).map(Some(_))
-      case None    => Success(None)
+      case Some(v) ⇒ wrapped.tryCast(value).map(Some(_))
+      case None    ⇒ Success(None)
     }
   }
 

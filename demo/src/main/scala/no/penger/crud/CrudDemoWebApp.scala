@@ -79,8 +79,8 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
     implicit val c1 = Cell[Name](_.asString, Name)
     implicit val c2 = Cell[Desc](_.asString, Desc)
     implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = false)
-    implicit val c4 = Cell[ProductId](_.id.toString, s => ProductId(s.toLong), canEdit = false)
-    implicit val c5 = Cell[EmployeeId](_.id.toString, s => EmployeeId(s.toLong), canEdit = false)
+    implicit val c4 = Cell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong), canEdit = false)
+    implicit val c5 = Cell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong), canEdit = false)
 
     /**
      * These editable-instances are necessary for now in order to expose
@@ -96,7 +96,7 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
     private val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
 
     /* tuple projection */
-    private val products  = Editor("/products", Products,  notifier)(_.map(t => (t.id, t.soldByRef, t.name)), _.id)
+    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldByRef, t.name)), _.id)
 
     /* no custom query, but has foreign keys to employees and products */
     private val stores    = Editor("/stores", Stores, notifier)(identity, _.id).sub(
@@ -109,10 +109,10 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
 
     override val resourceIntent: Plan.Intent = {
       /* dont do this at home etc */
-      case req@GET(ContextPath(ctx, resource)) =>
+      case req@GET(ContextPath(ctx, resource)) ⇒
         val optStream = Option(classOf[StoreCrudPlan].getResourceAsStream(resource))
         optStream.fold[ResponseFunction[Any]](NotFound) (
-          is => Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
+          is ⇒ Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
         )
     }
   }
@@ -131,7 +131,7 @@ object CrudDemoWebApp
 
   import profile.simple._
 
-  transaction.readWrite{implicit tx =>
+  transaction.readWrite{implicit tx ⇒
     Stores    insertAll (GenData.stores :_*)
     Employees insertAll (GenData.employees :_*)
     Products  insertAll (GenData.products :_*)

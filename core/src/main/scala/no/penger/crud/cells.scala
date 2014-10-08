@@ -21,8 +21,8 @@ trait cells extends viewFormat {
   abstract class ValueCell[E: ClassTag] extends Cell[E] {
     final def tryCast(value:String): Try[E] =
       Try(cast(value)) match {
-        case Failure(f) => Failure(new RuntimeException(s"$value is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
-        case success    => success
+        case Failure(f) ⇒ Failure(new RuntimeException(s"$value is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
+        case success    ⇒ success
       }
     protected def cast(value: String): E
   }

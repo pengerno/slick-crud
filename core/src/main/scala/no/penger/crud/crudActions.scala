@@ -16,12 +16,12 @@ trait crudActions extends queryParser with cells {
                   (implicit s:        Session,
                             cr:       CellRow[PROJECTION]): Seq[Seq[ElemFormat]] = {
 
-      val rows         = max.fold(q)(n => q.take(n)).list
+      val rows         = max.fold(q)(n ⇒ q.take(n)).list
       val untypedCells = untypedCellsForQuery(q)
 
-      rows.map { row =>
+      rows.map { row ⇒
         untypedCells.zip(cr.unpackValues(row)).map {
-          case ((name, cell), value) =>
+          case ((name, cell), value) ⇒
             if (pks(name))      cell.link(ctx, value)
             else if (editable)  cell.editable(value)
             else                cell.fixed(value)
@@ -29,27 +29,33 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    def update[T, ROW](q:       Query[T, ROW, Seq],
-                       updates: Map[ColumnName, String])
-             (implicit s:       Session,
-                       cr:      CellRow[ROW]): Either[Seq[FailedUpdate], Seq[Update]] = {
+    /**
+     * @param verifyQ only use this to verify that the exposed query contains the columns in 'updated'
+     * @param q update using this
+     */
+    def update[T, ROW, PROJ](verifyQ:    Query[T, PROJ, Seq],
+                             q:          Query[T, ROW, Seq],
+                             updates:    Map[ColumnName, String])
+                   (implicit s:          Session,
+                             verifyQRow: CellRow[PROJ],
+                             qRow:       CellRow[ROW]): Either[Seq[FailedUpdate], Seq[Update]] = {
 
-      val untypedCells = untypedCellsForQuery(q)
+      val untypedCells       = untypedCellsForQuery(q)
+      val untypedCellsVerify = untypedCellsForQuery(verifyQ)
 
       val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
-        case (columnName, value) =>
+        case (columnName, value) ⇒
           val tried: Try[Update] = for {
-            cell           <- untypedCells.collectFirst {
-              case (`columnName`, cell) => cell
-            }.toTry(s"table ${QueryParser.tableNameFrom(q)} does not have a column $columnName")
-            updater        <- Try(q.map(row => columnFromRowWithName(q, row, columnName)))
-            oldValue       <- Try(updater.first)
-            validValue     <- cell.tryCast(value)
-            numUpdates     <- Try(updater.update(validValue))
+            _              ← tryPickFrom(columnName, untypedCellsVerify)
+            cell           ← tryPickFrom(columnName, untypedCells)
+            updater        ← Try(q.map(row ⇒ columnFromRowWithName(q, row, columnName)))
+            oldValue       ← Try(updater.first)
+            validValue     ← cell.tryCast(value)
+            numUpdates     ← Try(updater.update(validValue))
           } yield Update(columnName, oldValue, validValue, numUpdates)
 
           tried.toEither.left.map {
-            case t => FailedUpdate(columnName, value, t)
+            case t ⇒ FailedUpdate(columnName, value, t)
           }
       }
 
@@ -93,9 +99,14 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    private def untypedCellsForQuery(q: Q)(implicit e: CellRow[_]): Seq[(ColumnName, Cell[Any])] =
-      QueryParser.columnNames(q).zip(e.cells).map {
-        case (colName, cell) => (colName, cell.asInstanceOf[Cell[Any]])
+    private def tryPickFrom(Name: ColumnName, from: Seq[(ColumnName, Cell[Any])]): Try[Cell[Any]] =
+      from.collectFirst {
+        case (Name, cell) ⇒ cell
+      }.toTry(s"table ${QueryParser.tableNameFrom(q)} does not have a column $Name")
+
+    private def untypedCellsForQuery[E, U](q: Query[E, U, Seq])(implicit e: CellRow[U]): Seq[(ColumnName, Cell[Any])] =
+      QueryParser columnNames q zip e.cells map {
+        case (colName, cell) ⇒ (colName, cell.asInstanceOf[Cell[Any]])
       }
 
     /**
@@ -104,13 +115,13 @@ trait crudActions extends queryParser with cells {
     private def columnFromRowWithName[R](q: Query[R, _, Seq], row: R, name: ColumnName): Column[Any] = {
       val rowsWithNames: Seq[(Column[Any], ColumnName)] = row match {
         /* a projection to a tuple */
-        case p:          Product          => ExtractColumnFromProductProjection(q, p)
-        case slickTable: AbstractTable[_] => ExtractColumnsFromSlickTable(slickTable)
-        case c:          Column[_]        => Seq(ExtractSoloColumn(q, c))
+        case p:          Product          ⇒ ExtractColumnFromProductProjection(q, p)
+        case slickTable: AbstractTable[_] ⇒ ExtractColumnsFromSlickTable(slickTable)
+        case c:          Column[_]        ⇒ Seq(ExtractSoloColumn(q, c))
       }
 
       rowsWithNames collectFirst {
-        case (col, colName) if colName == name => col
+        case (col, colName) if colName == name ⇒ col
       } getOrElse {
         throw new RuntimeException(s"Couldn't find column $name in rows $rowsWithNames from query $q")
       }
@@ -141,7 +152,7 @@ trait crudActions extends queryParser with cells {
        */
       def apply(q: Q, row: Product): Seq[(Column[Any], ColumnName)] =
         row.productIterator.map(_.asInstanceOf[Column[Any]]).zipWithIndex.map {
-          case (c, idx) =>
+          case (c, idx) ⇒
             val qq = q.map(_.asInstanceOf[Product].productElement(idx).asInstanceOf[Column[Any]])
             ExtractSoloColumn(qq, c)
         }.toSeq
@@ -164,13 +175,13 @@ trait crudActions extends queryParser with cells {
 
         /* this was my best shot at getting at all the columns defined as defs and vals */
         val foundCols = reflected.symbol.asType.toType.members.collect {
-          case m if m.typeSignature.resultType.typeConstructor =:= typeOf[slick.lifted.Column[Any]].typeConstructor =>
+          case m if m.typeSignature.resultType.typeConstructor =:= typeOf[slick.lifted.Column[Any]].typeConstructor ⇒
 
             if (m.isMethod) reflected.reflectMethod(m.asMethod).apply().asInstanceOf[Column[Any]]
             else            reflected.reflectField(m.asTerm).get.asInstanceOf[Column[Any]]
         }
 
-        foundCols.toSeq.map(c => (c, nameOfColumn(c)))
+        foundCols.toSeq.map(c ⇒ (c, nameOfColumn(c)))
       }
     }
   }

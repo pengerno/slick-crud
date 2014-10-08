@@ -12,13 +12,13 @@ trait GenDataModule extends StoreDomain {
     }
 
     private def extractStores(lines: List[(String, Int)]): List[Store] = lines match {
-      case (name, id) :: (description, _) :: tail =>
+      case (name, id) :: (description, _) :: tail ⇒
         Store(
           StoreId(id.toString),
           Name(name),
-          Some(Desc(description)).filterNot(_ => Random.nextInt(6) == 0)
+          Some(Desc(description)).filterNot(_ ⇒ Random.nextInt(6) == 0)
         ) :: extractStores(tail)
-      case _ => Nil
+      case _ ⇒ Nil
     }
     private def howMany = 1 + Random.nextInt(6)
 
@@ -28,13 +28,13 @@ trait GenDataModule extends StoreDomain {
     //listofrandomnames.com
     val names = readLines("names.txt")
 
-    val employees = stores.flatMap { store =>
-      0 until howMany map { n =>
+    val employees = stores.flatMap { store ⇒
+      0 until howMany map { n ⇒
         Employee(EmployeeId(0), Name(names.next()), store.id)
       }
     }
-    val products = stores.flatMap { store =>
-      0 until howMany map { n =>
+    val products = stores.flatMap { store ⇒
+      0 until howMany map { n ⇒
         Product(ProductId(0), Name("product name"), Random.nextInt(500), store.id)
       }
     }
