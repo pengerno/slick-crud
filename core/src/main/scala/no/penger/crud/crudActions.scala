@@ -106,7 +106,7 @@ trait crudActions extends queryParser with cells {
         /* a projection to a tuple */
         case p:          Product          => ExtractColumnFromProductProjection(q, p)
         case slickTable: AbstractTable[_] => ExtractColumnsFromSlickTable(slickTable)
-        case c: Column[_]                 => ExtractSoloColumn(q, c)
+        case c:          Column[_]        => Seq(ExtractSoloColumn(q, c))
       }
 
       rowsWithNames collectFirst {
@@ -116,19 +116,16 @@ trait crudActions extends queryParser with cells {
       }
     }
 
-    trait ColumnTextExtractor{
-      val ExtractColName = """select (\w+\.)?(\w*) from.*""".r
-    }
-
     /* if there is only one column in the query this is what we get */
-    object ExtractSoloColumn extends ColumnTextExtractor {
+    object ExtractSoloColumn {
+      val ExtractColName = """select (\w+\.)?(\w*) from.*""".r
       def apply(q: Q, c: Column[_]) = {
         val ExtractColName(_, colName) = q.selectStatement
-        Seq((c.asInstanceOf[Column[Any]], ColumnName(colName)))
+        (c.asInstanceOf[Column[Any]], ColumnName(colName))
       }
     }
 
-    object ExtractColumnFromProductProjection extends ColumnTextExtractor {
+    object ExtractColumnFromProductProjection {
       /**
        * This was particularly difficult to figure out. The 'Product' is a TupleN of Column[_]s.
        *
@@ -146,8 +143,7 @@ trait crudActions extends queryParser with cells {
         row.productIterator.map(_.asInstanceOf[Column[Any]]).zipWithIndex.map {
           case (c, idx) =>
             val qq = q.map(_.asInstanceOf[Product].productElement(idx).asInstanceOf[Column[Any]])
-            val ExtractColName(_, colName) = qq.selectStatement
-            (c, ColumnName(colName))
+            ExtractSoloColumn(qq, c)
         }.toSeq
     }
 
