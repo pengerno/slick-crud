@@ -10,7 +10,7 @@ trait testView extends view {
   override def append(one: PageFormat, two: PageFormat) = one ++ two
 
   case class TestView(tableName: TableName,
-                      columnNames: Seq[TableColumn],
+                      columnNames: Seq[ColumnName],
                       content: Either[(Option[String], Option[Row]), Seq[Row]]){
     def id = content.left.map(_._1)
 
@@ -20,7 +20,7 @@ trait testView extends view {
     }
   }
 
-  override def View(ctx: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) = new View {
+  override def View(ctx: String, uniqueId: String, tableName: TableName, columnNames: Seq[ColumnName]) = new View {
     override def many(rows: Seq[Row]): PageFormat =
       Seq(TestView(tableName, columnNames, Right(rows)))
 

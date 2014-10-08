@@ -94,7 +94,7 @@ trait crudActions extends queryParser with cells {
     }
 
     private def untypedCellsForQuery(q: Q)(implicit e: CellRow[_]): Seq[(ColumnName, Cell[Any])] =
-      QueryParser.columnNames(q).map(_.c).zip(e.cells).map {
+      QueryParser.columnNames(q).zip(e.cells).map {
         case (colName, cell) => (colName, cell.asInstanceOf[Cell[Any]])
       }
 

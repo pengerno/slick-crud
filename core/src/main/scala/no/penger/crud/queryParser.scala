@@ -19,11 +19,11 @@ trait queryParser extends slickIntegration {
       def get[T](pf: PartialFunction[Node, T])(under: Node): T = find(pf)(under).get
     }
 
-    object columnNames extends (Q => Seq[TableColumn]){
+    object columnNames extends (Q => Seq[ColumnName]){
 
-      def apply(q: Q): Seq[TableColumn] = {
+      def apply(q: Q): Seq[ColumnName] = {
         val name = tableNameFrom(q)
-        colsFromQuery(q.toNode) map name.withColumn
+        colsFromQuery(q.toNode)
       }
 
       /* recursively lookup column references into the tree until we find a TableExpansion with names */
@@ -103,6 +103,6 @@ trait queryParser extends slickIntegration {
         case TableNode(_, tablename, _, _, _) => TableName(tablename)
       }(q.toNode)
 
-    def primaryKeys(q: Q): Set[ColumnName] = columnNames(q).map(_.c).toSet
+    def primaryKeys(q: Q): Set[ColumnName] = columnNames(q).toSet
   }
 }

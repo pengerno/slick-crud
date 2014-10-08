@@ -8,10 +8,10 @@ trait viewHtml extends view with viewFormatHtml {
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
-  override def View(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) =
+  override def View(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[ColumnName]) =
     ViewHtml(base, uniqueId, tableName, columnNames)
 
-  case class ViewHtml(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]) extends View {
+  case class ViewHtml(base: String, uniqueId: String, tableName: TableName, columnNames: Seq[ColumnName]) extends View {
 
     override def many(rows: Seq[Seq[Elem]]) =
       <div>
@@ -45,7 +45,7 @@ trait viewHtml extends view with viewFormatHtml {
       </div>
     }
 
-    def single(rowCells: Seq[(TableColumn, NodeSeq)]) =
+    def single(rowCells: Seq[(ColumnName, NodeSeq)]) =
       <div>
         <h2>{tableName}</h2>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>

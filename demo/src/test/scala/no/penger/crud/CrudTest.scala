@@ -6,8 +6,6 @@ import no.penger.db.LiquibaseH2TransactionComponent
 import org.scalatest.FunSuite
 import org.scalautils.TypeCheckedTripleEquals
 
-import scala.util.Try
-
 /**
  * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
  *  so it's a bit easier to test, and try all crucial crud operations on it
@@ -102,7 +100,7 @@ class CrudTest
     val expected = Seq(
       TestView(
         tableName,
-        Seq(tableName.withColumn(ColumnName("quantity")), tableName.withColumn(ColumnName("name"))),
+        Seq(ColumnName("quantity"), ColumnName("name")),
         Left((Some(pid1.id.toString), Some(Seq(q1.toString, n1.asString))))
       )
     )

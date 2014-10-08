@@ -15,7 +15,7 @@ class QueryParserTest
     assertResult(shouldEqual, q.selectStatement)(op(q))
   }
 
-  def tc(t: String, c: String) = TableColumn(TableName(t), ColumnName(c))
+  def c(c: String) = ColumnName(c)
 
   class OneTwoThreeT(tag: Tag) extends Table[(Int, Option[Int], Option[Int])](tag, "t") {
     def one   = column[Int]("one")
@@ -35,27 +35,27 @@ class QueryParserTest
   }
 
   test("understand simple columns"){
-    myAssert(TableQuery[OneTwoThreeT], Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT], Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("understand map to one column "){
-    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(tc("t", "two")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(c("two")))(QueryParser.columnNames)
   }
 
   test("understand map to two columns "){
-    myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq(tc("t", "two"), tc("t", "three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].map(t => (t.two, t.three)), Seq(c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("understand map / nested projections "){
-    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t => (t.two, t.three)).map(_._1), Seq(tc("t", "two")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t => (t.two, t.three)).map(_._1), Seq(c("two")))(QueryParser.columnNames)
   }
 
   test("understand case class projection"){
-    myAssert(TableQuery[OneTwoThreeST], Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeST], Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("understand query"){
-    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(tc("t", "one"), tc("t", "two"), tc("t", "three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
   }
 
   test("get tablename"){

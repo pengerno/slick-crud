@@ -4,7 +4,7 @@ trait view extends viewFormat {
 
   def append(one: PageFormat, two: PageFormat): PageFormat
 
-  def View(ctx: String, uniqueId: String, tableName: TableName, columnNames: Seq[TableColumn]): View
+  def View(ctx: String, uniqueId: String, tableName: TableName, columnNames: Seq[ColumnName]): View
 
   trait View{
     def many(rows: Seq[Seq[ElemFormat]]): PageFormat
