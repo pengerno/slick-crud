@@ -23,6 +23,12 @@ trait cellRowInstances extends cells {
   private def c[A: Cell]: Cell[A] = implicitly[Cell[A]]
   private def i[T](vs: Seq[Any], idx: Int): T = vs(idx).asInstanceOf[T]
 
+  implicit def singular[A1: Cell]: CellRow[A1] = new CellRow[A1]{
+    def cells = List(c[A1])
+    def packValues(vs: Seq[Any]) = vs.head.asInstanceOf[A1]
+    def unpackValues(e: A1) = List(e)
+  }
+
   implicit def tuple2[A1: Cell, A2: Cell]: CellRowProduct[(A1, A2)] =
     new CellRowProduct[(A1, A2)] {
       def cells = List(c[A1], c[A2])

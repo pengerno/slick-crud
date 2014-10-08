@@ -1,5 +1,6 @@
 package no.penger
 
+import scala.slick.lifted.Query
 import scala.util.{Failure, Success, Try}
 
 package object crud {
@@ -8,7 +9,6 @@ package object crud {
 
   trait Crud
     extends CrudAbstract
-    with html.cellInstances
     with html.viewHtml
     with http.unfilteredIntegration
 
@@ -24,6 +24,12 @@ package object crud {
     override def toString: String = asString
   }
 
+  case class Ctx(s: String){
+    override def toString: String = s
+  }
+
+  final type Q = Query[_, _, Seq]
+
   def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
       case (Right(acc), Right(u)) ⇒ Right(acc :+ u)
@@ -32,7 +38,7 @@ package object crud {
       case (_,          Left(f))  ⇒ Left(Seq(f))
     }
 
-  implicit class EitherToTry[T](val e: Try[T]) extends AnyVal {
+  implicit class TryToEiher[T](val e: Try[T]) extends AnyVal {
     def toEither = e match {
       case Success(t) ⇒ Right(t)
       case Failure(f) ⇒ Left(f)
@@ -41,5 +47,18 @@ package object crud {
 
   implicit class OptionToTry[T](val ot: Option[T]) extends AnyVal {
     def toTry(leftMsg: String) = ot map Success.apply getOrElse Failure(new RuntimeException(leftMsg))
+  }
+
+  implicit class ExtendedEither[L, R](val e: Either[L, R]) extends AnyVal {
+    def sideEffects(left: L ⇒ Unit, right: R ⇒ Unit) = {
+      e.fold(left, right)
+      e
+    }
+  }
+
+  /* typesafe equals */
+  implicit class Equals[A](val a: A) extends AnyVal {
+    def =:=(b: A): Boolean = a == b
+    def =/=(b: A): Boolean = a != b
   }
 }

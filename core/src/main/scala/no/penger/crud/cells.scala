@@ -1,52 +1,79 @@
 package no.penger.crud
 
 import scala.reflect.ClassTag
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Success, Try}
 
-/**
- * A Cell is the mapping of a type to/from the web.
- * link(), editable() and fixed() provides three different ways to render,
- * while tryCast() parses a string back to the given type so it can be persisted.
- */
 trait cells extends viewFormat {
 
+  /**
+   * A Cell is the mapping of a type to/from the web.
+   */
   trait Cell[E] {
-    def link(ctx: String, e:E): ElemFormat
-    def editable(e: E):         ElemFormat
-    def fixed(e: E):            ElemFormat
-    def tryCast(value: String): Try[E]
+    val inputType:  String
+    val isEditable: Boolean
+    val alignRight: Boolean
+    val typeName:   String
+    def toStr(e: E): String
+    def tryFromStr(value: String): Try[E]
   }
 
-  /* homogeneous error handling for simple types */
-  abstract class ValueCell[E: ClassTag] extends Cell[E] {
-    final def tryCast(value:String): Try[E] =
-      Try(cast(value)) match {
-        case Failure(f) ⇒ Failure(new RuntimeException(s"$value is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
+  object Cell {
+    def toStr[T](t: T)(implicit c: Cell[T]) = c.toStr(t)
+  }
+
+  /* homogeneous error handling and type name via ClassTag */
+  case class SimpleCell[E: ClassTag](
+    asString:   E      ⇒ String,
+    fromString: String ⇒ E,
+    inputType:  String          = "text",
+    isEditable: Boolean         = true,
+    alignRight: Boolean         = true) extends Cell[E] {
+
+    val typeName             = implicitly[ClassTag[E]].runtimeClass.getSimpleName
+
+    def toStr(e: E)          = asString(e)
+    def parse(s: String): E  = fromString(s)
+
+    final def tryFromStr(value:String): Try[E] =
+      Try(parse(value)) match {
+        case Failure(f) ⇒ Failure(new RuntimeException(s"'$value' is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
         case success    ⇒ success
       }
-    protected def cast(value: String): E
   }
+
+  /* handling of optional values*/
+  implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = new Cell[Option[A]] {
+    override val isEditable           = wrapped.isEditable
+    override val alignRight           = wrapped.alignRight
+    override val inputType            = wrapped.inputType
+    override val typeName             = s"Option[${wrapped.typeName}]"
+    override def toStr(e: Option[A]) = e map wrapped.toStr getOrElse ""
+
+    def tryFromStr(value: String): Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
+      case Some(v) ⇒ wrapped.tryFromStr(value).map(Some(_))
+      case None    ⇒ Success(None)
+    }
+  }
+
+  implicit val booleanCell = SimpleCell[Boolean](_.toString, _.toBoolean, inputType = "checkbox")
+  implicit val doubleCell  = SimpleCell[Double] (_.toString, _.toDouble,  inputType = "number")
+  implicit val intCell     = SimpleCell[Int]    (_.toString, _.toInt,     inputType = "number")
+  implicit val longCell    = SimpleCell[Long]   (_.toString, _.toLong,    inputType = "number")
+  implicit val stringCell  = SimpleCell[String] (identity,   identity)
 
   /**
    * A collection of 'Cell's, one for each column of a database row.
    *  This means that in order create an instance of this, you need 'Cell's for every
    *  type in the row
-   * @tparam PROJECTION
    */
-  @annotation.implicitNotFound("Couldn't find cell instances for all the types in projection ${PROJECTION}")
-  trait CellRow[PROJECTION]{
+  @annotation.implicitNotFound("Couldn't find cell instances for all the types in projection ${ROW}")
+  trait CellRow[ROW]{
     def cells:List[Cell[_]]
 
-    /* given an instance of 'PROJECTION', pick out the fields that correspond to each cell in 'cells' */
-    def unpackValues(e:PROJECTION):List[Any]
+    /* given an instance of 'ROW', pick out the fields that correspond to each cell in 'cells' */
+    def unpackValues(e:ROW):List[Any]
 
-    /* reconstruct a PROJECTION given a list of values */
-    def packValues(a: Seq[Any]): PROJECTION
-  }
-
-  implicit def singleRow[T](implicit c: Cell[T]): CellRow[T] = new CellRow[T]{
-    override def cells = List(c)
-    override def packValues(vs: Seq[Any]): T = vs.head.asInstanceOf[T]
-    override def unpackValues(e: T): List[Any] = List(e)
+    /* reconstruct a ROW given a list of values */
+    def packValues(a: Seq[Any]): ROW
   }
 }

@@ -1,9 +1,9 @@
 package no.penger
 package crud
 
-trait queryParser extends slickIntegration {
+import scala.slick.lifted.TableQuery
 
-  final type Q = slick.lifted.Query[_, _, Seq]
+trait queryParser {
 
   object QueryParser {
     import scala.slick.ast._
@@ -21,10 +21,7 @@ trait queryParser extends slickIntegration {
 
     object columnNames extends (Q ⇒ Seq[ColumnName]){
 
-      def apply(q: Q): Seq[ColumnName] = {
-        val name = tableNameFrom(q)
-        colsFromQuery(q.toNode)
-      }
+      def apply(q: Q): Seq[ColumnName] = colsFromQuery(q.toNode)
 
       /* recursively lookup column references into the tree until we find a TableExpansion with names */
       def colsFromQuery(cols: Node): Seq[ColumnName] = cols match {
@@ -38,20 +35,20 @@ trait queryParser extends slickIntegration {
         /* select a subset of the columns (that we iterate further to find definitions for) */
         case Bind(_, from, selects) ⇒ selectFrom(selects, colsFromQuery(from))
 
-        /* basically ignore these, should be more clever here */
+        /* basically ignore these
+            im sure there will be other that will show up here, so we should be more clever,
+            for example by DFS of the children for things we know
+        */
         case SortBy(_, from, _) ⇒ colsFromQuery(from)
         case Filter(_, from, _) ⇒ colsFromQuery(from)
-
-        /* im sure there will be other that will show up here. sorry, hehe*/
       }
 
       /* picks subset of columns */
-      def selectFrom(selects: Node, cols: Seq[ColumnName]): Seq[ColumnName] = {
+      def selectFrom(selects: Node, cols: Seq[ColumnName]): Seq[ColumnName] =
         columnsOrIndexFor(selects).foldLeft[Seq[ColumnName]](Seq.empty){
           case (acc, Left(IndexedColumn(_, idx))) ⇒ acc :+ cols(idx - 1)
           case (acc, Right(name))                 ⇒ acc :+ name
         }
-      }
 
       /* find all column names or column references under node  */
       def columnsOrIndexFor(n: Node) = {
@@ -99,11 +96,8 @@ trait queryParser extends slickIntegration {
       }
     }
 
-    def tableNameFrom(q: Q): TableName =
-      Dfs.get[TableName] {
-        case TableNode(_, tablename, _, _, _) ⇒ TableName(tablename)
-      }(q.toNode)
-
-    def primaryKeys(q: Q): Set[ColumnName] = columnNames(q).toSet
+    def tableNameFrom(table: TableQuery[_]): TableName = table.toNode match {
+      case TableExpansion(_, TableNode(_, tableName, _, _, _), _) => TableName(tableName)
+    }
   }
 }

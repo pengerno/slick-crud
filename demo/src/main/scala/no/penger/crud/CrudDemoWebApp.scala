@@ -15,7 +15,7 @@ trait StoreDomain{
   case class Desc(asString: String)
 
   case class StoreId(id: String)
-  case class Store(id: StoreId, name: Name, description: Option[Desc])
+  case class Store(id: StoreId, name: Name, description: Option[Desc], closed: Boolean)
 
   case class ProductId(id: Long)
   case class Product(id: ProductId, name: Name, quantity: Int, soldBy: StoreId)
@@ -27,6 +27,7 @@ trait StoreDomain{
 trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   import profile.simple._
 
+  /* these type class instances are to enable the use of the types in slick */
   implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.asString, Desc)
   implicit lazy val m2 = MappedColumnType.base[EmployeeId, Long](  _.id,       EmployeeId)
   implicit lazy val m3 = MappedColumnType.base[Name,       String](_.asString, Name)
@@ -37,8 +38,9 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
     def id       = column[StoreId]("id")
     def name     = column[Name]   ("name")
     def descr    = column[Desc]   ("description").?
+    def closed   = column[Boolean]("closed")
 
-    def *        = (id, name, descr) <> (Store.tupled, Store.unapply)
+    def *        = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
 
     def inventory = foreignKey("store_inventory", id.?, Products)(_.soldByRef.?)
     def employees = foreignKey("store_employees", id, Employees)(_.worksAtRef)
@@ -69,26 +71,28 @@ trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
   val Employees  = TableQuery[EmployeeT]
 }
 
-trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLogging {
+trait StoreCrudInstances extends StoreDomain with cellRowInstances {
+  /**
+   * we need to provide cell instanced for every type we expose through slick-crud,
+   *  in order for it to know how to render and parse them
+   */
+  implicit val c1 = SimpleCell[Name](_.asString, Name)
+  implicit val c2 = SimpleCell[Desc](_.asString, Desc)
+  implicit val c3 = SimpleCell[StoreId](_.id, StoreId, isEditable = true)
+  implicit val c4 = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
+  implicit val c5 = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
+
+  /**
+   * These editable-instances are necessary for now in order to expose
+   *  tables that have default projections to a case class for example.
+   */
+  implicit val e1 = mappedCellRow(Employee.tupled, Employee.unapply)
+  implicit val e2 = mappedCellRow(Product.tupled,  Product.unapply)
+  implicit val e3 = mappedCellRow(Store.tupled,    Store.unapply)
+}
+
+trait StoreCrudPlan extends StoreTables with Crud with StoreCrudInstances with logging.updateNotifierLogging {
   object crudPlan extends CrudPlan {
-
-    /**
-     * we need to provide cell instanced for every type we expose through slick-crud,
-     *  in order for it to know how to render and parse them
-     */
-    implicit val c1 = Cell[Name](_.asString, Name)
-    implicit val c2 = Cell[Desc](_.asString, Desc)
-    implicit val c3 = Cell[StoreId](_.id, StoreId, canEdit = false)
-    implicit val c4 = Cell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong), canEdit = false)
-    implicit val c5 = Cell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong), canEdit = false)
-
-    /**
-     * These editable-instances are necessary for now in order to expose
-     *  tables that have default projections to a case class for example.
-     */
-    implicit val e1 = mappedCellRow(Employee.tupled, Employee.unapply)
-    implicit val e2 = mappedCellRow(Product.tupled,  Product.unapply)
-    implicit val e3 = mappedCellRow(Store.tupled,    Store.unapply)
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
@@ -117,7 +121,7 @@ trait StoreCrudPlan extends StoreTables with Crud with logging.updateNotifierLog
     }
   }
 
-  override def respond(ctx: String, title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx, title)(body))
+  override def respond(ctx: Ctx, title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx.s, title)(body))
 }
 
 object CrudDemoWebApp

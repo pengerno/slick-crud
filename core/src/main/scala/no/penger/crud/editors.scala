@@ -1,8 +1,6 @@
 package no.penger
 package crud
 
-import java.util.UUID
-
 import scala.reflect.ClassTag
 import scala.slick.lifted.AbstractTable
 
@@ -16,7 +14,6 @@ import scala.slick.lifted.AbstractTable
  *  - composes with other 'Editor's (see 'on()', 'single()' and 'sub()')
  */
 trait editors extends editorAbstracts with crudActions with view with updateNotifier {
-
   import profile.simple._
 
   object Editor{
@@ -38,35 +35,29 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
      * @tparam ID the primary key column, for example Column[Int]
      *
      */
-    def apply[ROW <: AbstractTable[_], LP, P, ID]
+    def apply[ROW <: AbstractTable[_], LP: ClassTag, P: CellRow, ID: BaseColumnType: Cell]
       (mounted:    String,
        table:      TableQuery[ROW],
        notifier:   UpdateNotifier     = new UpdateNotifier,
        isEditable: Boolean            = true)
       (query:      Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
        pk:         ROW ⇒ Column[ID])
-      (implicit ev1:               ClassTag[LP],
-                ev2:               BaseColumnType[ID],
-                idCell:            Cell[ID],
-                tableCellRow:      CellRow[ROW#TableElementType],
-                projectionCellRow: CellRow[P]) =
-      new Editor[ROW, LP, P, ID](mounted, table, query, pk, notifier, isEditable, editors = Nil, isOnlyOneRow = false)
+      (implicit r: CellRow[ROW#TableElementType]) =
+      new Editor[ROW, LP, P, ID](mounted, table, query, pk, notifier, isEditable, QueryParser.tableNameFrom(table), editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[ROW <: AbstractTable[_], LP, P, ID] (
+  case class Editor[ROW <: AbstractTable[_], LP: ClassTag, P: CellRow, ID: BaseColumnType] (
       mounted:      String,
       table:        Query[ROW, ROW#TableElementType, Seq],
       query:        Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
       pk:           ROW ⇒ Column[ID],
       notifier:     UpdateNotifier,
       isEditable:   Boolean,
+      tableName:    TableName,
       editors:      Seq[ID ⇒ Editor[_, _, _, _]],
       isOnlyOneRow: Boolean)
-     (implicit ev1:               ClassTag[LP],
-               ev2:               BaseColumnType[ID],
-           val idCell:            Cell[ID],
-               tableCellRow:      CellRow[ROW#TableElementType],
-               projectionCellRow: CellRow[P]) extends EditorAbstract[ID] {
+     (implicit val idCell:            Cell[ID],
+                   tableCellRow:      CellRow[ROW#TableElementType]) extends EditorAbstract[ID] {
 
     /* return a subeditor which is bound through a foreign key so that it can be referenced from another editor via sub() */
     def on[X : BaseColumnType](f:ROW ⇒ Column[X])(x:X) = copy(table = table.filter(f(_) === x))
@@ -77,64 +68,54 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
-    def base(ctx: String) = ctx + mounted
+    def base(ctx: Ctx) = ctx.s + mounted
 
-    val primaryKeys = QueryParser.primaryKeys(table.map(pk))
-    val tableName   = QueryParser.tableNameFrom(table)
+    val primaryKey = QueryParser.columnNames(table.map(pk)).head
 
-    /* generate a random id for the table we render, for frontend to distinguish multiple tables */
-    val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
+    val namedCellsQuery: NamedCells[P]                    = NamedCells(query(table))
+    val namedCellsTable: NamedCells[ROW#TableElementType] = NamedCells(table)
 
-    def view(ctx: String) = {
-      val rows        = db.withSession(
-        implicit s ⇒ crudAction.read(base(ctx), primaryKeys, query(table), isEditable, max = Some(1).filter(_ ⇒ isOnlyOneRow))
-      )
-      val columnNames = QueryParser.columnNames(query(table))
+    def createView[T](ctx: Ctx, ncs: NamedCells[T]) =
+      View[ID, T](base(ctx), tableName, isEditable, primaryKey, ncs)
 
-      val view        = View(base(ctx), uniqueId, tableName, columnNames)
+    override def view(ctx: Ctx) = {
+      val view = createView(ctx, namedCellsQuery)
 
-      if (isOnlyOneRow) view.rowOpt(None, rows.headOption)
-      else              view.many(rows)
-    }
-
-    def viewRow(ctx: String, id:ID) = {
-      val selectQuery = query(table.filter(pk(_) === id))
-      val rowOpt      = db.withSession(
-        implicit s ⇒ crudAction.read(base(ctx), primaryKeys, selectQuery, isEditable, max = Some(1)).headOption
-      )
-      val columnNames = QueryParser.columnNames(selectQuery)
-
-      val view = View(base(ctx), uniqueId, tableName, columnNames).rowOpt(Some(idCell.fixed(id)), rowOpt)
-
-      editors.map(_(id).view(ctx)).foldLeft(view)(append)
-    }
-
-
-    override def viewNew(ctx: String): PageFormat = {
-      View(base(ctx), uniqueId, tableName, QueryParser.columnNames(table)).newPage
-    }
-
-    def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {
-      val filteredTable = table.filter(pk(_) === id)
-      db.withTransaction{ implicit s ⇒
-        crudAction.update(query(filteredTable), filteredTable, updates) match {
-          case l@Left(fails: Seq[FailedUpdate]) ⇒
-            s.rollback()
-            fails foreach notifier.updateFailed(tableName, id)
-            l
-          case r@Right(okUpdates) ⇒
-            okUpdates foreach notifier.updated(tableName, id)
-            r
+      if (isOnlyOneRow){
+        crudAction.readRow(query(table)) match {
+          case Some(row)       ⇒ view.single(namedCellsQuery.extractColumn(row, primaryKey, idCell), row)
+          case _               ⇒ view.notFound(None)
+        }
+      } else view.many {
+        crudAction.read(query(table)).map {
+          row ⇒ (namedCellsQuery.extractColumn(row, primaryKey, idCell), row)
         }
       }
     }
+
+    override def viewRow(ctx: Ctx, id:ID) = {
+      val view   = createView(ctx, namedCellsQuery)
+      val rowOpt = crudAction.readRow(query(table.filter(pk(_) === id)))
+
+      rowOpt match {
+        case Some(row) ⇒ editors.map(_(id).view(ctx)).foldLeft(view.single(id, row))(append)
+        case _         ⇒ view.notFound(Some(id))
+      }
+  }
+
+    override def viewNew(ctx: Ctx): PageFormat =
+      createView(ctx, namedCellsTable).newPage
+
+    def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] =
+      crudAction.update(namedCellsQuery, table.filter(pk(_) === id), namedCellsTable, updates).sideEffects(
+        _ foreach notifier.updateFailed(tableName, id),
+        _ foreach notifier.updated(tableName, id)
+      )
 
     def create(params: Map[ColumnName, String]): Either[Seq[Throwable], Option[ID]] =
-      db.withTransaction{ implicit s ⇒
-        crudAction.create(table, pk, params).right.map{
-          case id ⇒ notifier.addedRow(tableName, id)
-            id
-        }
-      }
+      crudAction.create(table, namedCellsTable, pk, params).sideEffects(
+        l ⇒ (),
+        id ⇒ notifier.addedRow(tableName, id)
+      )
   }
 }

@@ -1,26 +1,21 @@
 package no.penger.crud
 
 object PageTemplate {
-
-  def javascript(ctx: String, path: String) =
-    <script src={ctx + path} type="text/javascript"> </script>
-
-  def css(ctx: String, path: String) =
-    <link href={ctx + path} rel="stylesheet"/>
-  
   def page(ctx: String, title: String)(body: xml.NodeSeq) =
-    <html>
+    <html lang="en">
       <head>
+        <meta charset="utf-8"/>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <title>{title}</title>
-        { javascript(ctx, "/scripts/crud.js")}
-        { javascript("", "http://code.jquery.com/jquery-2.1.0.min.js")}
-        { css(ctx, "/crud.css")}
+        <link rel="stylesheet" href={ctx + "/3rdparty/bootstrap/3.2.0/css/bootstrap.min.css"}></link>
+        <link rel="stylesheet" href={ctx + "/3rdparty/bootstrap/3.2.0/css/bootstrap-theme.min.css"}></link>
+        <script                src={ ctx + "/3rdparty/jquery-1.11.1.min.js"}></script>
+        <script                src={ ctx + "/3rdparty/bootstrap/3.2.0/js/bootstrap.min.js"}></script>
+        <script                src={ ctx + "/scripts/crud.js"} type="text/javascript"></script>
       </head>
       <body>
-        <div class="content">
-          <h1>{title}</h1>
-          {body}
-        </div>
+        <p><div class="container-fluid">{body}</div></p>
       </body>
     </html>
 }

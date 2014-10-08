@@ -2,30 +2,16 @@ package no.penger.crud
 package http
 
 import unfiltered.filter.Plan
-import unfiltered.filter.request.ContextPath
 import unfiltered.request._
 import unfiltered.response._
 
-trait unfilteredIntegration extends editorAbstracts {
+trait unfilteredIntegration extends editorAbstracts with extractors {
 
-  def respond(ctx: String, title: String)(body: PageFormat): ResponseFunction[Any]
+  def respond(ctx: Ctx, title: String)(body: PageFormat): ResponseFunction[Any]
 
-  case class EditorUnfiltered[ID](editor: EditorAbstract[ID]){
-
-    val MountedAt: List[String] = Seg.unapply(editor.mounted).get
-
-    /* extract id from url */
-    object Id {
-      def unapply(parts: String): Option[ID] = editor.idCell.tryCast(parts.split("/").head).toOption
-    }
-
-    /* extract column updates */
-    object ColUpdates {
-      def unapply[T](req: HttpRequest[T]) =
-        Some(req.parameterNames.foldLeft[Map[ColumnName, String]](Map.empty)((acc, n) ⇒
-          acc + (ColumnName(n) → req.parameterValues(n).head)
-        ))
-    }
+  case class EditorUnfiltered[ID](editor: EditorAbstract[ID]) extends Extractors[ID] {
+    val idCell    = editor.idCell
+    val MountedAt = Seg.unapply(editor.mounted).get
 
     def intent:Plan.Intent = {
 

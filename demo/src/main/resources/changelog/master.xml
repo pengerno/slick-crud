@@ -13,6 +13,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="text"/>
+            <column name="closed" type="boolean">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
 
         <createTable tableName="products">

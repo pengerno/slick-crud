@@ -1,14 +1,26 @@
 package no.penger.crud
 
-trait view extends viewFormat {
+trait view extends namedCells with viewFormat {
 
   def append(one: PageFormat, two: PageFormat): PageFormat
 
-  def View(ctx: String, uniqueId: String, tableName: TableName, columnNames: Seq[ColumnName]): View
+  def View[ID: Cell, ROW](
+    base:       String,
+    tableName:  TableName,
+    isEditable: Boolean,
+    id:         ColumnName,
+    namedCells: NamedCells[ROW]): View[ID, ROW]
 
-  trait View{
-    def many(rows: Seq[Seq[ElemFormat]]): PageFormat
-    def rowOpt(id: Option[ElemFormat], rowOpt: Option[Seq[ElemFormat]]): PageFormat
+  abstract class View[ID: Cell, ROW] {
+
+    def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat
+
+    def many(rows: Seq[(ID, ROW)]): PageFormat
+
+    def single(id: ID, row: ROW): PageFormat
+
+    def notFound(idOpt: Option[ID]): PageFormat
+
     def newPage: PageFormat
   }
 }

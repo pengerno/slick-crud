@@ -16,7 +16,8 @@ trait GenDataModule extends StoreDomain {
         Store(
           StoreId(id.toString),
           Name(name),
-          Some(Desc(description)).filterNot(_ ⇒ Random.nextInt(6) == 0)
+          Some(Desc(description)).filterNot(_ ⇒ Random.nextInt(6) == 0),
+          Random.nextBoolean()
         ) :: extractStores(tail)
       case _ ⇒ Nil
     }

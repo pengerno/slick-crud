@@ -1,6 +1,6 @@
 package no.penger.crud
 
-trait slickIntegration {
+trait databaseIntegration {
   val profile: slick.driver.JdbcDriver
   def db: profile.simple.Database
 }
