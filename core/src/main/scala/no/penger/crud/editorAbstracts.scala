@@ -8,7 +8,8 @@ trait editorAbstracts extends viewFormat with cells {
     def view: PageFormat
     def viewRow(id: ID): PageFormat
     def viewNew: PageFormat
-    def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]]
     def create(params: Map[ColumnName, String]): Either[Seq[Throwable], ID]
+    def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[UpdateFailed], Seq[UpdateSuccess]]
+    def delete(id:ID): Either[DeleteFailed, DeleteSuccess.type]
   }
 }

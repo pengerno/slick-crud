@@ -42,7 +42,7 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
       case req@POST(ContextPath(_, Seg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
         editor.update(id, updates) match {
-          case Left(fails: Seq[FailedUpdate]) ⇒
+          case Left(fails: Seq[UpdateFailed]) ⇒
             BadRequest ~> ResponseString(fails.mkString("\n"))
           case Right(okUpdates) ⇒
             Ok ~> ResponseString(okUpdates.mkString("\n"))

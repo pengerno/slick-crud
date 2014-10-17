@@ -37,13 +37,11 @@ class CrudTest
   }
 
   object failOnUpdateFail extends UpdateNotifier {
-    override def updateFailed[ID](t: TableName, id: ID)(f: FailedUpdate) = {
-      f.t.printStackTrace()
-      fail(f.t)
-    }
+    override def updateFailed[ID](t: TableName, id: ID)(f: UpdateFailed) = fail(f.t)
   }
+
   object failOnUpdateSucceed extends UpdateNotifier {
-    override def updated[ID, T](t: TableName, id: ID)(u: Update) = fail(s"should not have been able to update: $u")
+    override def updated[ID, T](t: TableName, id: ID)(u: UpdateSuccess) = fail(s"should not have been able to update: $u")
   }
 
   /* some test data */
@@ -227,5 +225,14 @@ class CrudTest
       )
     )
     assert(Right(sid) === ret)
+  }
+
+  test("delete"){
+    val e    = Editor(ignoreMounted, Products)(identity, _.id)
+    val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
+
+    assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), Some(Seq(pid1.id.toString, n1.asString, q1.toString, storeId.id)))))
+    assert(Right(DeleteSuccess) === e.delete(pid1))
+    assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), None)))
   }
 }

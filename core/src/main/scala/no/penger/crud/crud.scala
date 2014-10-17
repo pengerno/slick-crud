@@ -7,9 +7,11 @@ package object crud {
 
   trait CrudAbstract extends editors with cellRowInstances
 
-  case class Update(column: ColumnName, oldValue: Any, newValue: Any, numUpdated: Int)
+  case class UpdateSuccess(column: ColumnName, oldValue: Any, newValue: Any, numUpdated: Int)
+  case class UpdateFailed(column: ColumnName, value: String, t: Throwable)
 
-  case class FailedUpdate(column: ColumnName, value: String, t: Throwable)
+  case object DeleteSuccess
+  case class DeleteFailed(reason: String)
 
   case class ColumnName(asString: String) extends AnyVal{
     override def toString: String = asString

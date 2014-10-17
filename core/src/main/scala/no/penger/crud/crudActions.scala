@@ -23,27 +23,28 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
      */
     def update[TABLE <: AbstractTable[_]](
         namedCellsQuery: NamedCells[_],
-        q:               Query[TABLE, TABLE#TableElementType, Seq],
+        table:           Query[TABLE, TABLE#TableElementType, Seq],
         namedCellsTable: NamedCells[TABLE#TableElementType],
-        updates:         Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] =
+        updates:         Map[ColumnName, String]): Either[Seq[UpdateFailed], Seq[UpdateSuccess]] =
 
       db.withTransaction {
         implicit s ⇒
-          val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
+          val results: Iterable[Either[UpdateFailed, UpdateSuccess]] = updates.map {
             case (columnName, value) ⇒
-              val tried: Try[Update] = for {
+              val tried: Try[UpdateSuccess] = for {
                 _              ← namedCellsQuery cellByName columnName
                 cell           ← namedCellsTable cellByName columnName
-                updater        ← Try(q.map(table ⇒ ColumnWithName(table, columnName)))
+                updater        ← Try(table map ColumnWithName(columnName))
                 validValue     ← cell tryFromStr value
                 oldValue       ← Try(updater.first)
                 numUpdates     ← Try(updater update validValue)
-              } yield Update(columnName, oldValue, validValue, numUpdates)
+              } yield UpdateSuccess(columnName, oldValue, validValue, numUpdates)
 
               tried.toEither.left.map {
-                case t ⇒ FailedUpdate(columnName, value, t)
+                case t ⇒ UpdateFailed(columnName, value, t)
               }
         }
+
         sequence(results).sideEffects(_ ⇒ s.rollback(), _ ⇒ ())
       }
 
@@ -51,7 +52,7 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType](
         table:        Query[TABLE, TABLE#TableElementType, Seq],
         namedCells:   NamedCells[TABLE#TableElementType],
-        id:           TABLE ⇒ Column[ID],
+        idColumn:     TABLE ⇒ Column[ID],
         params:       Map[ColumnName, String]): Either[Seq[Throwable], Either[TABLE#TableElementType, ID]] = {
 
       val validatedValues: Seq[Either[Throwable, Any]] = namedCells.cells map {
@@ -66,7 +67,7 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
 
       sequence(validatedValues).right.flatMap {
         validValues ⇒ {
-          val inserter = table returning table.map(id)
+          val inserter = table returning table.map(idColumn)
           val toInsert = namedCells packValues validValues
           val ret      = Try(db withTransaction (implicit s ⇒ inserter insert toInsert))
           ret match {
@@ -79,6 +80,27 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
               }
           }
         }
+      }
+    }
+    
+    def delete[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
+        table:    Query[TABLE, TABLE#TableElementType, Seq],
+        idColumn: TABLE ⇒ Column[ID],
+        id:       ID): Either[DeleteFailed, DeleteSuccess.type] = {
+
+      val row = table.filter(idColumn(_) === id)
+
+      /* the default implicit, queryToDeleteInvoker, only converts Query[_ <: Table[_]]) to DeleteInvoker,
+       *  so I inlined it here to make it work for Query[_ <: AbstractTable[_]] too*/
+      val deleteInvoker = new profile.DeleteInvoker(profile.deleteCompiler.run(row.toNode).tree, ())
+
+      db withTransaction {
+        implicit s ⇒
+          deleteInvoker.delete.run match {
+            case 0 ⇒ Left(DeleteFailed(s"No rows matched"))
+            case 1 ⇒ Right(DeleteSuccess)
+            case _ ⇒ s.rollback(); Left (DeleteFailed(s"matched ${deleteInvoker.delete.run} rows"))
+          }
       }
     }
   }
