@@ -52,7 +52,7 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
         table:        Query[TABLE, TABLE#TableElementType, Seq],
         namedCells:   NamedCells[TABLE#TableElementType],
         id:           TABLE ⇒ Column[ID],
-        params:       Map[ColumnName, String]): Either[Seq[Throwable], Option[ID]] = {
+        params:       Map[ColumnName, String]): Either[Seq[Throwable], Either[TABLE#TableElementType, ID]] = {
 
       val validatedValues: Seq[Either[Throwable, Any]] = namedCells.cells map {
         case (columnName, cell) ⇒
@@ -66,15 +66,15 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
 
       sequence(validatedValues).right.flatMap {
         validValues ⇒ {
-          val inserter = table returning table.map(r ⇒ id(r).?)
+          val inserter = table returning table.map(id)
           val toInsert = namedCells packValues validValues
           val ret      = Try(db withTransaction (implicit s ⇒ inserter insert toInsert))
           ret match {
-            case util.Success(oid) ⇒ Right(oid)
+            case util.Success(oid) ⇒ Right(Right(oid))
             case util.Failure(t1)  ⇒
               /* try again without return of autoincrement value*/
               Try(db withTransaction (implicit s ⇒ table insert toInsert )) match {
-                case util.Success(_)  ⇒ Right(None)
+                case util.Success(_)  ⇒ Right(Left(toInsert))
                 case util.Failure(t2) ⇒ Left(Seq(t2, t1))
               }
           }

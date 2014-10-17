@@ -172,7 +172,7 @@ class CrudTest
 
   test("create tupled"){
     val e   = Editor(ignoreMounted, ProductsTupled)(identity, _.id)
-    val ret: Either[Seq[Throwable], Option[ProductId]] = e.create(
+    val ret = e.create(
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
         ColumnName("name")      → n1.asString,
@@ -197,8 +197,7 @@ class CrudTest
     /* test that view returns correctly after successful create*/
     ret match {
       case Left(fs)         ⇒ fail("couldn't update", fs.head)
-      case Right(None)      ⇒ fail("didnt get pid")
-      case Right(Some(pid)) ⇒
+      case Right(pid) ⇒
         val view = e.viewRow(pid)
         containAssert(shouldContain = true, view, quantity.toString)
     }
@@ -218,14 +217,15 @@ class CrudTest
 
   test("create without auto-increment"){
     val e   = Editor(ignoreMounted, Stores)(identity, _.id)
+    val sid = StoreId("storeId")
     val ret = e.create(
       Map[ColumnName, String](
-        ColumnName("id")          → StoreId("storeId").id,
+        ColumnName("id")          → sid.id,
         ColumnName("name")        → "my store",
         ColumnName("description") → storeId.id.toString,
         ColumnName("closed")      → true.toString
       )
     )
-    assert(Right(None) === ret)
+    assert(Right(sid) === ret)
   }
 }

@@ -12,7 +12,7 @@ trait updateNotifierLogging extends updateNotifier {
      override def updateFailed[ID](t: TableName, id: ID)(f: FailedUpdate) =
       logger.warn(s"could not update table $t for row $id for column ${f.column} and value ${f.value}}", f.t)
 
-     override def addedRow[ID](t: TableName, id: Option[ID]) =
+     override def addedRow[ID](t: TableName, id: ID) =
       logger.warn(s"added row for table $t with id $id")
   }
 }

@@ -31,12 +31,8 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
       case req@POST(ContextPath(_, Seg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(params) match {
-          case Left(fails) ⇒
-            BadRequest ~> ResponseString(fails.mkString("\n"))
-          case Right(Some(id)) ⇒
-            respond(s"created new ${editor.tableName}")(editor.viewRow(id))
-          case Right(None) ⇒
-            respond(s"created new ${editor.tableName}")(editor.view)
+          case Left(fails) ⇒ BadRequest ~> ResponseString(fails.mkString("\n"))
+          case Right(id)   ⇒ respond(s"created new ${editor.tableName}")(editor.viewRow(id))
         }
 
       case req@GET(ContextPath(_, Seg(MountedAt :+ Id(id)))) ⇒

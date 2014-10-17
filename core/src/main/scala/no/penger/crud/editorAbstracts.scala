@@ -9,6 +9,6 @@ trait editorAbstracts extends viewFormat with cells {
     def viewRow(id: ID): PageFormat
     def viewNew: PageFormat
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]]
-    def create(params: Map[ColumnName, String]): Either[Seq[Throwable], Option[ID]]
+    def create(params: Map[ColumnName, String]): Either[Seq[Throwable], ID]
   }
 }
