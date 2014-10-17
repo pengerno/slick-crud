@@ -1,15 +1,13 @@
 package no.penger.crud
 
-import no.penger.db
 import org.scalatest.FunSuite
 
 class QueryParserTest
   extends FunSuite
   with queryParser
-  with db.H2TransactionComponent {
+  with slick.driver.JdbcDriver {
 
-  def db = ???
-  import profile.simple._
+  import simple._
 
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
     assertResult(shouldEqual, q.selectStatement)(op(q))
@@ -72,4 +70,3 @@ class QueryParserTest
     assertResult(TableName("t"))(one)
   }
 }
-

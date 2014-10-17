@@ -48,7 +48,6 @@ class CrudTest
 
   /* some test data */
   val ignoreMounted = "mounted"
-  val c             = Ctx("ctx")
   val storeId       = StoreId("store")
   val ignore        = ProductId(Int.MaxValue)
   val n1            = Name("amazing product")
@@ -57,7 +56,7 @@ class CrudTest
   val q1            = 100
 
   val (pid1, pid2) = db.withSession{implicit s ⇒
-    Stores.insert(Store(storeId, Name("store"), None, true))
+    Stores.insert(Store(storeId, Name("store"), None, closed = true))
     val pid1 = insertProduct(Product(ignore, n1, q1, storeId))
     val pid2 = insertProduct(Product(ignore, n2, 100, storeId))
     (pid1, pid2)
@@ -67,7 +66,7 @@ class CrudTest
     val e = Editor(ignoreMounted, Products)(identity, _.id)
 
     /* check that view contains both */
-    val view: PageFormat = e.view(c)
+    val view: PageFormat = e.view
     containAssert(shouldContain = true, view, n1.asString)
     containAssert(shouldContain = true, view, n2.asString)
   }
@@ -76,21 +75,21 @@ class CrudTest
     val e = Editor(ignoreMounted, Products)(identity, _.id)
 
     /* check that asking for one id only returns values for that product*/
-    containAssert(shouldContain = true,  e.viewRow(c, pid1), n1.asString)
-    containAssert(shouldContain = false, e.viewRow(c, pid1), n2.asString)
+    containAssert(shouldContain = true,  e.viewRow(pid1), n1.asString)
+    containAssert(shouldContain = false, e.viewRow(pid1), n2.asString)
 
-    containAssert(shouldContain = false, e.viewRow(c, pid2), n1.asString)
-    containAssert(shouldContain = true,  e.viewRow(c, pid2), n2.asString)
+    containAssert(shouldContain = false, e.viewRow(pid2), n1.asString)
+    containAssert(shouldContain = true,  e.viewRow(pid2), n2.asString)
 
-    containAssert(shouldContain = false, e.viewRow(c, ProductId(-1)), n1.asString)
-    containAssert(shouldContain = false, e.viewRow(c, ProductId(-1)), n2.asString)
+    containAssert(shouldContain = false, e.viewRow(ProductId(-1)), n1.asString)
+    containAssert(shouldContain = false, e.viewRow(ProductId(-1)), n2.asString)
   }
 
   test("view(id) for projection"){
     val e = Editor(ignoreMounted, Products)(_.map(p ⇒ (p.quantity, p.name)), _.id)
 
     val expected  = Left((Some(pid1.id.toString), Some(Seq(q1.toString, n1.asString))))
-    assert(e.viewRow(c, pid1).head.content === expected)
+    assert(e.viewRow(pid1).head.content === expected)
   }
 
   test("update (class ⇒ tuple) editor"){
@@ -100,7 +99,7 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update (tuple ⇒ tuple) editor"){
@@ -111,7 +110,7 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update (tuple ⇒ sorted tuple) editor"){
@@ -122,7 +121,7 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update (class ⇒ class) editor"){
@@ -132,7 +131,7 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, q1.toString, storeId.id)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update only chosen columns"){
@@ -154,7 +153,7 @@ class CrudTest
     e.update(pid, Map(ColumnName("name") → n3.asString))
 
     val expected = Left(Some(pid.id.toString), Some(Vector(n3.asString)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update two columns"){
@@ -168,7 +167,7 @@ class CrudTest
     )
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, newQuantity.toString, storeId.id)))
-    assert(e.viewRow(c, pid).head.content === expected)
+    assert(e.viewRow(pid).head.content === expected)
   }
 
   test("create tupled"){
@@ -200,7 +199,7 @@ class CrudTest
       case Left(fs)         ⇒ fail("couldn't update", fs.head)
       case Right(None)      ⇒ fail("didnt get pid")
       case Right(Some(pid)) ⇒
-        val view = e.viewRow(c, pid)
+        val view = e.viewRow(pid)
         containAssert(shouldContain = true, view, quantity.toString)
     }
   }

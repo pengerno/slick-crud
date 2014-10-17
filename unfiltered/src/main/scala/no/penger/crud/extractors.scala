@@ -1,7 +1,5 @@
 package no.penger.crud
-package http
 
-import javax.servlet.http.HttpServletRequest
 import unfiltered.request.HttpRequest
 
 trait extractors extends cells {
@@ -20,13 +18,6 @@ trait extractors extends cells {
         Some(req.parameterNames.foldLeft[Map[ColumnName, String]](Map.empty)((acc, n) ⇒
           acc + (ColumnName(n) → req.parameterValues(n).head)
         ))
-    }
-
-    object ContextPath {
-      def unapply[T <: HttpServletRequest](req: HttpRequest[T]): Some[(Ctx, String)] =
-        req.underlying.getContextPath match {
-          case ctx => Some((Ctx(ctx), req.uri.substring(ctx.length).split('?')(0)))
-        }
     }
   }
 }

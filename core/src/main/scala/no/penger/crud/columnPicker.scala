@@ -1,6 +1,6 @@
 package no.penger.crud
 
-import scala.slick.lifted.{Column, AbstractTable}
+import scala.slick.lifted.{AbstractTable, Column}
 
 trait columnPicker extends queryParser {
 

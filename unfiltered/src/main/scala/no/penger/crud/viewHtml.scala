@@ -1,5 +1,4 @@
 package no.penger.crud
-package html
 
 import java.util.UUID
 
@@ -7,11 +6,14 @@ import scala.xml.NodeSeq
 
 trait viewHtml extends view with viewFormatHtml {
 
+  /* context path */
+  val ctx: String
+
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
   override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCells[ROW]): View[ID, ROW] =
-    ViewHtml(base, tableName, isEditable, id, namedCells)
+    ViewHtml(ctx + base, tableName, isEditable, id, namedCells)
 
   case class ViewHtml[ID: Cell, ROW](
     base:       String,
@@ -63,7 +65,7 @@ trait viewHtml extends view with viewFormatHtml {
     override def notFound(idOpt: Option[ID]) =
       idOpt match {
         case Some(id) ⇒ <h3>{s"Found no referenced $tableName for id ${Cell.toStr(id)}"}</h3>
-        case None     ⇒ <h3>s"Found no referenced $tableName"</h3>
+        case None     ⇒ <h3>{s"Found no referenced $tableName"}</h3>
       }
 
     override def single(id: ID, row: ROW) = {

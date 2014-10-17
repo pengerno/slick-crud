@@ -7,11 +7,6 @@ package object crud {
 
   trait CrudAbstract extends editors with cellRowInstances
 
-  trait Crud
-    extends CrudAbstract
-    with html.viewHtml
-    with http.unfilteredIntegration
-
   case class Update(column: ColumnName, oldValue: Any, newValue: Any, numUpdated: Int)
 
   case class FailedUpdate(column: ColumnName, value: String, t: Throwable)
@@ -22,10 +17,6 @@ package object crud {
 
   case class TableName(asString: String) extends AnyVal {
     override def toString: String = asString
-  }
-
-  case class Ctx(s: String){
-    override def toString: String = s
   }
 
   final type Q = Query[_, _, Seq]

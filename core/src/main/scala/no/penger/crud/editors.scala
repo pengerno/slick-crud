@@ -68,18 +68,14 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
-    def base(ctx: Ctx) = ctx.s + mounted
-
-    val primaryKey = QueryParser.columnNames(table.map(pk)).head
-
+    val primaryKey:      ColumnName                       = QueryParser.columnNames(table.map(pk)).head
     val namedCellsQuery: NamedCells[P]                    = NamedCells(query(table))
     val namedCellsTable: NamedCells[ROW#TableElementType] = NamedCells(table)
 
-    def createView[T](ctx: Ctx, ncs: NamedCells[T]) =
-      View[ID, T](base(ctx), tableName, isEditable, primaryKey, ncs)
+    def createView[T](ncs: NamedCells[T]) = View[ID, T](mounted, tableName, isEditable, primaryKey, ncs)
 
-    override def view(ctx: Ctx) = {
-      val view = createView(ctx, namedCellsQuery)
+    override def view = {
+      val view = createView(namedCellsQuery)
 
       if (isOnlyOneRow){
         crudAction.readRow(query(table)) match {
@@ -93,18 +89,17 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
       }
     }
 
-    override def viewRow(ctx: Ctx, id:ID) = {
-      val view   = createView(ctx, namedCellsQuery)
+    override def viewRow(id:ID) = {
+      val view   = createView(namedCellsQuery)
       val rowOpt = crudAction.readRow(query(table.filter(pk(_) === id)))
 
       rowOpt match {
-        case Some(row) ⇒ editors.map(_(id).view(ctx)).foldLeft(view.single(id, row))(append)
+        case Some(row) ⇒ editors.map(_(id).view).foldLeft(view.single(id, row))(append)
         case _         ⇒ view.notFound(Some(id))
       }
   }
 
-    override def viewNew(ctx: Ctx): PageFormat =
-      createView(ctx, namedCellsTable).newPage
+    override def viewNew: PageFormat = createView(namedCellsTable).newPage
 
     def update(id: ID, updates: Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] =
       crudAction.update(namedCellsQuery, table.filter(pk(_) === id), namedCellsTable, updates).sideEffects(

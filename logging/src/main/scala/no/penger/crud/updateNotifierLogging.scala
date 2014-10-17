@@ -1,5 +1,4 @@
 package no.penger.crud
-package logging
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 

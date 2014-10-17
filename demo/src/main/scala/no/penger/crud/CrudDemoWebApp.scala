@@ -1,10 +1,10 @@
 package no.penger
 package crud
 
+import javax.servlet.{FilterConfig, ServletContext}
+
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
-import unfiltered.filter.request.ContextPath
-import unfiltered.request.GET
 import unfiltered.response._
 
 import scala.language.implicitConversions
@@ -24,7 +24,7 @@ trait StoreDomain{
   case class Employee(id: EmployeeId, name: Name, worksAt: StoreId)
 }
 
-trait StoreTables extends StoreDomain with db.SlickTransactionBoundary {
+trait StoreTables extends StoreDomain with databaseIntegration {
   import profile.simple._
 
   /* these type class instances are to enable the use of the types in slick */
@@ -91,8 +91,25 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
   implicit val e3 = mappedCellRow(Store.tupled,    Store.unapply)
 }
 
-trait StoreCrudPlan extends StoreTables with Crud with StoreCrudInstances with logging.updateNotifierLogging {
-  object crudPlan extends CrudPlan {
+
+object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with LazyLogging {
+
+  class CrudUnfilteredDemo(context: ServletContext) extends StoreTables
+                                             with CrudUnfiltered
+                                             with StoreCrudInstances
+                                             with GenDataModule
+                                             with updateNotifierLogging {
+    val profile = CrudDemoWebApp.profile
+    val db      = CrudDemoWebApp.db
+    val ctx     = context.getContextPath
+
+    import profile.simple._
+
+    db.withTransaction{implicit s ⇒
+      Stores    insertAll (GenData.stores    :_*)
+      Employees insertAll (GenData.employees :_*)
+      Products  insertAll (GenData.products  :_*)
+    }
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
@@ -106,38 +123,19 @@ trait StoreCrudPlan extends StoreTables with Crud with StoreCrudInstances with l
     private val stores    = Editor("/stores", Stores, notifier)(identity, _.id).sub(
       employees.on(_.worksAtRef),
       products.on(_.soldByRef)
-      //todo: single something
     )
 
     override val editors = Seq(employees, products, stores)
 
-    override val resourceIntent: Plan.Intent = {
-      /* dont do this at home etc */
-      case req@GET(ContextPath(ctx, resource)) ⇒
-        val optStream = Option(classOf[StoreCrudPlan].getResourceAsStream(resource))
-        optStream.fold[ResponseFunction[Any]](NotFound) (
-          is ⇒ Ok ~> ResponseString(io.Source.fromInputStream(is).getLines().mkString("\n"))
-        )
-    }
+    override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx, title)(body))
   }
 
-  override def respond(ctx: Ctx, title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx.s, title)(body))
-}
+  /* set in init() because that's when we receive context */
+  var crudDemo: CrudUnfilteredDemo = _
 
-object CrudDemoWebApp
-  extends StoreCrudPlan
-  with GenDataModule
-  with db.LiquibaseH2TransactionComponent
-  with Plan
-  with LazyLogging {
+  override def init(config: FilterConfig): Unit = {
+    crudDemo = new CrudUnfilteredDemo(config.getServletContext)
+  }
 
-  override lazy val intent = crudPlan.intent
-
-  import profile.simple._
-
-  transaction.readWrite{implicit tx ⇒
-    Stores    insertAll (GenData.stores :_*)
-    Employees insertAll (GenData.employees :_*)
-    Products  insertAll (GenData.products :_*)
- }
+  override def intent = crudDemo.intent
 }

@@ -22,31 +22,31 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
      *  for the actual update
      */
     def update[TABLE <: AbstractTable[_]](
-      namedCellsQuery: NamedCells[_],
-      q:               Query[TABLE, TABLE#TableElementType, Seq],
-      namedCellsTable: NamedCells[TABLE#TableElementType],
-      updates:         Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] = {
+        namedCellsQuery: NamedCells[_],
+        q:               Query[TABLE, TABLE#TableElementType, Seq],
+        namedCellsTable: NamedCells[TABLE#TableElementType],
+        updates:         Map[ColumnName, String]): Either[Seq[FailedUpdate], Seq[Update]] =
 
-        db.withTransaction {
-          implicit s ⇒
-            val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
-              case (columnName, value) ⇒
-                val tried: Try[Update] = for {
-                  _              ← namedCellsQuery cellByName columnName
-                  cell           ← namedCellsTable cellByName columnName
-                  updater        ← Try(q.map(table ⇒ ColumnWithName(table, columnName)))
-                  validValue     ← cell tryFromStr value
-                  oldValue       ← Try(updater.first)
-                  numUpdates     ← Try(updater update validValue)
-                } yield Update(columnName, oldValue, validValue, numUpdates)
+      db.withTransaction {
+        implicit s ⇒
+          val results: Iterable[Either[FailedUpdate, Update]] = updates.map {
+            case (columnName, value) ⇒
+              val tried: Try[Update] = for {
+                _              ← namedCellsQuery cellByName columnName
+                cell           ← namedCellsTable cellByName columnName
+                updater        ← Try(q.map(table ⇒ ColumnWithName(table, columnName)))
+                validValue     ← cell tryFromStr value
+                oldValue       ← Try(updater.first)
+                numUpdates     ← Try(updater update validValue)
+              } yield Update(columnName, oldValue, validValue, numUpdates)
 
-                tried.toEither.left.map {
-                  case t ⇒ FailedUpdate(columnName, value, t)
-                }
-          }
-          sequence(results).sideEffects(_ ⇒ s.rollback(), _ ⇒ ())
+              tried.toEither.left.map {
+                case t ⇒ FailedUpdate(columnName, value, t)
+              }
         }
+        sequence(results).sideEffects(_ ⇒ s.rollback(), _ ⇒ ())
       }
+
 
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType](
         table:        Query[TABLE, TABLE#TableElementType, Seq],
@@ -81,6 +81,5 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
         }
       }
     }
-
   }
 }

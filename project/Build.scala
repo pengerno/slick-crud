@@ -38,24 +38,29 @@ object Build extends sbt.Build {
 
   lazy val crud = project("core")(
     "com.typesafe.slick"          %% "slick"                      % "2.1.0",
-    "org.scala-lang" 		   % "scala-reflect"              % "2.11.2",
-    "net.databinder"              %% "unfiltered-filter"          % unfilteredVersion,
-    "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "compile;provided;test",
+    "org.scala-lang" 		           % "scala-reflect"              % "2.11.2",
 
-    "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion % "test",
     "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
+  )
+
+  lazy val crudUnfiltered = project("unfiltered", crud)(
+    "net.databinder"              %% "unfiltered-filter"          % unfilteredVersion,
+    "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "provided;test"
   )
 
   lazy val crudLogging = project("logging", crud)(
     "com.typesafe.scala-logging"  %% "scala-logging-slf4j"        % "2.1.2"
   )
 
-  lazy val crudDemo = project("demo", crudLogging)(
+  lazy val crudDemo = project("demo", crudLogging, crudUnfiltered)(
     "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion,
     "net.databinder"              %% "unfiltered-jetty"           % unfilteredVersion,
-    "org.slf4j"                    % "slf4j-simple"               % "1.7.7"
+    "org.slf4j"                    % "slf4j-simple"               % "1.7.7",
+
+    "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion % "test",
+    "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
   )
 
   lazy val root = Project(s"$basename-parent", file("."), settings = buildSettings)
-    .aggregate(crud, crudLogging, crudDemo)
+    .aggregate(crud, crudLogging, crudUnfiltered, crudDemo)
 }
