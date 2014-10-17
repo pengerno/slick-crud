@@ -38,7 +38,7 @@ trait editors extends editorAbstracts with crudActions with view with updateNoti
     def apply[ROW <: AbstractTable[_], LP: ClassTag, P: CellRow, ID: BaseColumnType: Cell]
       (mounted:    String,
        table:      TableQuery[ROW],
-       notifier:   UpdateNotifier     = new UpdateNotifier,
+       notifier:   UpdateNotifier,
        isEditable: Boolean            = true)
       (query:      Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
        idColumn:   ROW ⇒ Column[ID])

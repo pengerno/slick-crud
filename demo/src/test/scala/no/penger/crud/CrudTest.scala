@@ -36,6 +36,7 @@ class CrudTest
     assert(shouldContain == (haystack./*YOLO*/toString() contains needle), haystack)
   }
 
+  val noop = new UpdateNotifier
   object failOnUpdateFail extends UpdateNotifier {
     override def updateFailed[ID](t: TableName, id: ID)(f: UpdateFailed) = fail(f.t)
   }
@@ -61,7 +62,7 @@ class CrudTest
   }
 
   test("view()"){
-    val e = Editor(ignoreMounted, Products)(identity, _.id)
+    val e = Editor(ignoreMounted, Products, noop)(identity, _.id)
 
     /* check that view contains both */
     val view: PageFormat = e.view
@@ -70,7 +71,7 @@ class CrudTest
   }
 
   test("view(id)"){
-    val e = Editor(ignoreMounted, Products)(identity, _.id)
+    val e = Editor(ignoreMounted, Products, noop)(identity, _.id)
 
     /* check that asking for one id only returns values for that product*/
     containAssert(shouldContain = true,  e.viewRow(pid1), n1.asString)
@@ -84,7 +85,7 @@ class CrudTest
   }
 
   test("view(id) for projection"){
-    val e = Editor(ignoreMounted, Products)(_.map(p ⇒ (p.quantity, p.name)), _.id)
+    val e = Editor(ignoreMounted, Products, noop)(_.map(p ⇒ (p.quantity, p.name)), _.id)
 
     val expected  = Left((Some(pid1.id.toString), Some(Seq(q1.toString, n1.asString))))
     assert(e.viewRow(pid1).head.content === expected)
@@ -169,7 +170,7 @@ class CrudTest
   }
 
   test("create tupled"){
-    val e   = Editor(ignoreMounted, ProductsTupled)(identity, _.id)
+    val e   = Editor(ignoreMounted, ProductsTupled, noop)(identity, _.id)
     val ret = e.create(
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
@@ -183,7 +184,7 @@ class CrudTest
 
   test("create class"){
     val quantity = 256
-    val e   = Editor(ignoreMounted, Products)(_.sortBy(_.name), _.id)
+    val e   = Editor(ignoreMounted, Products, noop)(_.sortBy(_.name), _.id)
     val ret = e.create(
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
@@ -202,7 +203,7 @@ class CrudTest
   }
 
   test("create only with all columns specified"){
-    val e   = Editor(ignoreMounted, ProductsTupled)(_.map(r ⇒ (r.name, r.quantity, r.soldByRef)), _.id)
+    val e   = Editor(ignoreMounted, ProductsTupled, noop)(_.map(r ⇒ (r.name, r.quantity, r.soldByRef)), _.id)
     val ret = e.create(
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
@@ -214,7 +215,7 @@ class CrudTest
   }
 
   test("create without auto-increment"){
-    val e   = Editor(ignoreMounted, Stores)(identity, _.id)
+    val e   = Editor(ignoreMounted, Stores, noop)(identity, _.id)
     val sid = StoreId("storeId")
     val ret = e.create(
       Map[ColumnName, String](
@@ -228,7 +229,7 @@ class CrudTest
   }
 
   test("delete"){
-    val e    = Editor(ignoreMounted, Products)(identity, _.id)
+    val e    = Editor(ignoreMounted, Products, noop)(identity, _.id)
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
     assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), Some(Seq(pid1.id.toString, n1.asString, q1.toString, storeId.id)))))
