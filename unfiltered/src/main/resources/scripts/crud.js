@@ -2,6 +2,16 @@ var no = no || {};
 no.penger = no.penger || {};
 no.penger.crud = no.penger.crud || {};
 
+/*
+    This code is... terrible, i know.
+
+    The only reasonable thing to do would be to build a better API, and
+     let the frontend handle json only, and kill all of this.
+
+    I don't have time for that now. Hacking a few lines here reminded
+     me well why i hate jquery so much
+*/
+
 no.penger.crud.makeEditable = function(editable, onChange){
     var $editable = $(editable);
     var current;
@@ -65,11 +75,10 @@ no.penger.crud.single = function(url, root){
 no.penger.crud.neew = function(url, root){
     function setup(){
         $("#submit").click(submit);
-        no.penger.crud.makeEditable($(root + ' [contenteditable=true]'), null);
     }
 
     function submit(){
-        /* not terribly proud of this, but its late... :)*/
+
         var form = document.createElement("form");
         form.setAttribute("method", "POST");
         form.setAttribute("action", url + "/new");
@@ -79,7 +88,19 @@ no.penger.crud.neew = function(url, root){
             var $self = $(this);
 
             var id    = $($self.find("td")[0]).text();
-            var value = $self.find("input").val();
+            var $input = $self.find("input");
+
+            var value;
+
+            if ($input.attr('type') === 'checkbox'){
+                if ($input[0].checked) {
+                    value = "true";
+                } else {
+                    value = "false";
+                }
+            } else{
+                value = $input.val();
+            }
 
             var hiddenField = document.createElement("input");
             hiddenField.setAttribute("type", "hidden");
