@@ -1,4 +1,3 @@
-
 package no.penger.crud
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -36,13 +35,18 @@ class CrudTest
     assert(shouldContain == (haystack./*YOLO*/toString() contains needle), haystack)
   }
 
+  def fail(e: Error): Nothing = e match {
+    case ErrorExc(t)   ⇒ fail(t)
+    case ErrorMsg(msg) ⇒ fail(msg)
+  }
+
   val noop = new UpdateNotifier
   object failOnUpdateFail extends UpdateNotifier {
-    override def updateFailed[ID](t: TableName, id: ID)(f: UpdateFailed) = fail(f.t)
+    override def notifyUpdateFailure(f: res.Failure) = fail(f.toString)
   }
 
   object failOnUpdateSucceed extends UpdateNotifier {
-    override def updated[ID, T](t: TableName, id: ID)(u: UpdateSuccess) = fail(s"should not have been able to update: $u")
+    override def notifyUpdated(s: res.Success) = super.notifyUpdated(s)
   }
 
   /* some test data */
@@ -95,7 +99,7 @@ class CrudTest
     val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(_.map(r ⇒ (r.id, r.name)), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
 
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString)))
     assert(e.viewRow(pid).head.content === expected)
@@ -106,7 +110,7 @@ class CrudTest
     val e   = Editor(ignoreMounted, ProductsTupled, failOnUpdateFail)(_.map(r ⇒ (r.quantity, r.name)), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
 
     val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
     assert(e.viewRow(pid).head.content === expected)
@@ -117,7 +121,7 @@ class CrudTest
     val e   = Editor(ignoreMounted, ProductsTupled, failOnUpdateFail)(_.sortBy(_.quantity).map(r ⇒ (r.quantity, r.name)), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
 
     val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.asString)))
     assert(e.viewRow(pid).head.content === expected)
@@ -127,7 +131,7 @@ class CrudTest
     val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(identity, _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
 
     val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, q1.toString, storeId.id)))
     assert(e.viewRow(pid).head.content === expected)
@@ -136,36 +140,22 @@ class CrudTest
   test("update only chosen columns"){
     val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(_.map(r ⇒ (r.id, r.soldByRef)), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
   }
 
   test("update only valid id") {
     val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(identity, _.id)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
-    e.update(ProductId(10001), Map(ColumnName("name") → n3.asString))
+    db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    e.update(ProductId(10001), ColumnName("name"), n3.asString)
   }
 
   test("update when id column not selected"){
     val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(_.map(_.name), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, Map(ColumnName("name") → n3.asString))
+    e.update(pid, ColumnName("name"), n3.asString)
 
     val expected = Left(Some(pid.id.toString), Some(Vector(n3.asString)))
-    assert(e.viewRow(pid).head.content === expected)
-  }
-
-  test("update two columns"){
-    val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(identity, _.id)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
-    val newQuantity = 101
-    e.update(pid,
-      Map(
-        ColumnName("name")     → n3.asString,
-        ColumnName("quantity") → newQuantity.toString)
-    )
-
-    val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.asString, newQuantity.toString, storeId.id)))
     assert(e.viewRow(pid).head.content === expected)
   }
 
@@ -195,8 +185,8 @@ class CrudTest
     )
     /* test that view returns correctly after successful create*/
     ret match {
-      case Left(fs)         ⇒ fail("couldn't update", fs.head)
-      case Right(pid) ⇒
+      case Left(res.CreateFailed(_, fs)) ⇒ fail(fs.head)
+      case Right(res.Created(_, pid)) ⇒
         val view = e.viewRow(pid)
         containAssert(shouldContain = true, view, quantity.toString)
     }
@@ -211,7 +201,7 @@ class CrudTest
         ColumnName("sold_by")   → storeId.id.toString
       )
     )
-    assert(Left("didn't provide value for name") === ret.left.map(_.head.getMessage))
+    assert(Left(ErrorMsg("Didn't provide value for name")) === ret.left.map(_.ts.head))
   }
 
   test("create without auto-increment"){
@@ -225,7 +215,7 @@ class CrudTest
         ColumnName("closed")      → true.toString
       )
     )
-    assert(Right(sid) === ret)
+    assert(Right(res.Created(e.tableName, sid)) === ret)
   }
 
   test("delete"){
@@ -233,7 +223,7 @@ class CrudTest
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
     assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), Some(Seq(pid1.id.toString, n1.asString, q1.toString, storeId.id)))))
-    assert(Right(DeleteSuccess) === e.delete(pid1))
+    assert(Right(res.Deleted(e.tableName, pid1)) === e.delete(pid1))
     assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), None)))
   }
 }

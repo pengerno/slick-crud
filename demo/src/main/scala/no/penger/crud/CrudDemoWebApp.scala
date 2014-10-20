@@ -95,10 +95,10 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with LazyLogging {
 
   class CrudUnfilteredDemo(context: ServletContext) extends StoreTables
-                                             with CrudUnfiltered
-                                             with StoreCrudInstances
-                                             with GenDataModule
-                                             with updateNotifierLogging {
+                                                    with CrudUnfiltered
+                                                    with StoreCrudInstances
+                                                    with GenDataModule
+                                                    with updateNotifierLogging {
     val profile = CrudDemoWebApp.profile
     val db      = CrudDemoWebApp.db
     val ctx     = context.getContextPath
@@ -117,7 +117,7 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
     private val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
 
     /* tuple projection */
-    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldByRef, t.name)), _.id)
+    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldByRef, t.quantity, t.name)), _.id)
 
     /* no custom query, but has foreign keys to employees and products */
     private val stores    = Editor("/stores", Stores, notifier)(identity, _.id).sub(

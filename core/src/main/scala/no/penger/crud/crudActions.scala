@@ -1,9 +1,10 @@
 package no.penger.crud
 
 import scala.slick.lifted.AbstractTable
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 trait crudActions extends namedCells with columnPicker with databaseIntegration {
+
   import profile.simple._
 
   object crudAction {
@@ -20,73 +21,57 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
      * We take two sets of named cells here. 'namedCellsQuery' just to verify that the
      *  columns to be updated are exposed by the current query, and we use 'namedCellsTable'
      *  for the actual update
+     *
+     *  @return old value of cell on success, error otherwise
      */
-    def update[TABLE <: AbstractTable[_]](
+    def update[TABLE <: AbstractTable[_], ID: BaseColumnType : Cell](
         namedCellsQuery: NamedCells[_],
         table:           Query[TABLE, TABLE#TableElementType, Seq],
+        idColumn:        TABLE ⇒ Column[ID],
+        id:              ID,
         namedCellsTable: NamedCells[TABLE#TableElementType],
-        updates:         Map[ColumnName, String]): Either[Seq[UpdateFailed], Seq[UpdateSuccess]] =
+        columnName:      ColumnName,
+        value:           String): Either[Error, String] =
 
-      db.withTransaction {
-        implicit s ⇒
-          val results: Iterable[Either[UpdateFailed, UpdateSuccess]] = updates.map {
-            case (columnName, value) ⇒
-              val tried: Try[UpdateSuccess] = for {
-                _              ← namedCellsQuery cellByName columnName
-                cell           ← namedCellsTable cellByName columnName
-                updater        ← Try(table map ColumnWithName(columnName))
-                validValue     ← cell tryFromStr value
-                oldValue       ← Try(updater.first)
-                numUpdates     ← Try(updater update validValue)
-              } yield UpdateSuccess(columnName, oldValue, validValue, numUpdates)
-
-              tried.toEither.left.map {
-                case t ⇒ UpdateFailed(columnName, value, t)
-              }
-        }
-
-        sequence(results).sideEffects(_ ⇒ s.rollback(), _ ⇒ ())
-      }
+      for {
+        _              ← namedCellsQuery cellByName columnName orError s"projection has no cell with name $columnName"
+        cell           ← namedCellsTable cellByName columnName orError s"table has no cell with name $columnName"
+        validValue     ← cell fromStr value
+        row            = table.filter(idColumn(_) === id)
+                         //cookies to whoever can get rid of the .get() - 'cols' doesn't make sense outside the scope of map()
+        updater        = row map (cols => ColumnWithName(columnName)(cols).get)
+        oldValue       ← Try(db withSession (implicit s ⇒ updater.first)).toEither.left.map[Error](ErrorExc)
+        _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
+      } yield cell.toStr(oldValue)
 
 
-    def create[TABLE <: AbstractTable[_], ID: BaseColumnType](
+    def create[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:        Query[TABLE, TABLE#TableElementType, Seq],
         namedCells:   NamedCells[TABLE#TableElementType],
         idColumn:     TABLE ⇒ Column[ID],
-        params:       Map[ColumnName, String]): Either[Seq[Throwable], Either[TABLE#TableElementType, ID]] = {
+        params:       Map[ColumnName, String],
+        primaryKey:   ColumnName): Either[Seq[Error], ID] = {
 
-      val validatedValues: Seq[Either[Throwable, Any]] = namedCells.cells map {
-        case (columnName, cell) ⇒
-          val tried: Try[Any] = for {
-            value      ← params get columnName toTry s"didn't provide value for $columnName"
-            validValue ← cell tryFromStr value
-          } yield validValue
-
-          tried.toEither
-      }
-
-      sequence(validatedValues).right.flatMap {
-        validValues ⇒ {
-          val inserter = table returning table.map(idColumn)
-          val toInsert = namedCells packValues validValues
-          val ret      = Try(db withTransaction (implicit s ⇒ inserter insert toInsert))
-          ret match {
-            case util.Success(oid) ⇒ Right(Right(oid))
-            case util.Failure(t1)  ⇒
-              /* try again without return of autoincrement value*/
-              Try(db withTransaction (implicit s ⇒ table insert toInsert )) match {
-                case util.Success(_)  ⇒ Right(Left(toInsert))
-                case util.Failure(t2) ⇒ Left(Seq(t2, t1))
-              }
+      def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], ID] =
+      /* first try and insert and see if we can get an id back */
+        Try[ID](db withTransaction (implicit s ⇒ table returning table.map(idColumn) insert toInsert)).orElse {
+          /* try again without return of autoincrement value */
+          Try(db withTransaction (implicit s ⇒ table.insert(toInsert))).map{
+            /* since there was no auto-generated id, dig out the id from what we inserted */
+            _ ⇒ namedCells.extractCell(toInsert, primaryKey, implicitly[Cell[ID]])
           }
-        }
-      }
+        }.toEither.left.map(t ⇒ Seq(ErrorExc(t)))
+
+      for {
+        toInsert ← namedCells.parseRow(params)
+        id       ← doInsert(toInsert)
+      } yield id
     }
-    
+
     def delete[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:    Query[TABLE, TABLE#TableElementType, Seq],
         idColumn: TABLE ⇒ Column[ID],
-        id:       ID): Either[DeleteFailed, DeleteSuccess.type] = {
+        id:       ID): Either[Error, Unit] = {
 
       val row = table.filter(idColumn(_) === id)
 
@@ -94,14 +79,14 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
        *  so I inlined it here to make it work for Query[_ <: AbstractTable[_]] too*/
       val deleteInvoker = new profile.DeleteInvoker(profile.deleteCompiler.run(row.toNode).tree, ())
 
-      db withTransaction {
-        implicit s ⇒
-          deleteInvoker.delete.run match {
-            case 0 ⇒ Left(DeleteFailed(s"No rows matched"))
-            case 1 ⇒ Right(DeleteSuccess)
-            case _ ⇒ s.rollback(); Left (DeleteFailed(s"matched ${deleteInvoker.delete.run} rows"))
-          }
-      }
+      db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(deleteInvoker.delete)))
+  }
+
+    private def ensureOneRowChanged(tn: Try[Int])(implicit s: Session): Either[Error, Unit] = tn match {
+      case Success(1)   ⇒ Right(())
+      case Success(0)   ⇒ s.rollback(); Left(ErrorMsg(s"No rows matched"))
+      case Success(num) ⇒ s.rollback(); Left(ErrorMsg(s"Rolled back because matched $num rows"))
+      case Failure(t)   ⇒ s.rollback(); Left(ErrorExc(t))
     }
   }
 }

@@ -6,19 +6,29 @@ trait updateNotifierLogging extends updateNotifier {
   trait UpdateNotifierLogging extends UpdateNotifier {
     self: LazyLogging ⇒
 
-    override def updated[ID, T](t: TableName, id: ID)(u: UpdateSuccess) =
-      logger.info(s"updated table $t for row $id for column ${u.column} from ${u.oldValue} to ${u.newValue}")
+    override def notifyUpdated(s: res.Success) = s match {
+      case res.Created(t, id)                 ⇒ logger.info(s"Added row for table $t with id $id")
+      case res.Updated(t, id, col, old, new_) ⇒ logger.info(s"Updated table $t for row $id for column $col from $old to $new_")
+      case res.Deleted(t, id)                 ⇒ logger.info(s"Deleted row for table $t with id $id")
+    }
 
-     override def updateFailed[ID](t: TableName, id: ID)(f: UpdateFailed) =
-      logger.warn(s"could not update table $t for row $id for column ${f.column} and value ${f.value}}", f.t)
+    def warn(e: Error, msg: String) = e match {
+      case ErrorExc(t)      ⇒ logger.warn(msg, t)
+      case ErrorMsg(detail) ⇒ logger.warn(s"$msg: $detail")
+    }
 
-     override def create[ID](t: TableName, id: ID) =
-      logger.warn(s"added row for table $t with id $id")
+    def errorMessages(es: Seq[Error]) = es.map {
+      case ErrorExc(t)   ⇒ t.getMessage
+      case ErrorMsg(msg) ⇒ msg
+    }.mkString(", ")
 
-    override def deleted[ID](t: TableName, id: ID) =
-      logger.info(s"deleted row for table $t with id $id")
-
-    override def deleteFailed[ID](t: TableName, id: ID)(d: DeleteFailed) =
-      logger.info(s"failed to deleted row for table $t with id $id because ${d.reason}")
+    override def notifyUpdateFailure(f: res.Failure) = f match {
+      case res.CreateFailed(t, errors)            ⇒ errors.toList match {
+        case firstError :: Nil ⇒ warn(firstError, s"Failed to create new row for table $t")
+        case _                 ⇒ logger.warn(s"Failed to create new row for table $t: ${errorMessages(errors)}")
+      }
+      case res.UpdateFailed(t, id, error, col, value) ⇒ warn(error, s"Failed to update row $id in table $t for column $col and value $value")
+      case res.DeleteFailed(t, id, error)             ⇒ warn(error, s"Failed to delete row $id in table $t because $error")
+    }
   }
 }

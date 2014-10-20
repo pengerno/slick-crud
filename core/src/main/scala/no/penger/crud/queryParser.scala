@@ -1,11 +1,13 @@
 package no.penger
 package crud
 
-import scala.slick.lifted.TableQuery
+import scala.slick.lifted.{Query, TableQuery}
 
 trait queryParser {
 
   object QueryParser {
+    final type Q = Query[_, _, Seq]
+
     import scala.slick.ast._
 
     case class IndexedColumn(ref: Symbol, idx: Int)
@@ -32,7 +34,7 @@ trait queryParser {
         case Bind(_, Join(_, _, left, _, _, _), _) ⇒
           colsFromQuery(left)
 
-        /* select a subset of the columns (that we iterate further to find definitions for) */
+        /* select a subset of the columns (recurse further to find the definitions) */
         case Bind(_, from, selects) ⇒ selectFrom(selects, colsFromQuery(from))
 
         /* basically ignore these

@@ -9,12 +9,12 @@ trait cells extends viewFormat {
    * A Cell is the mapping of a type to/from the web.
    */
   trait Cell[E] {
-    val inputType:  String
-    val isEditable: Boolean
-    val alignRight: Boolean
-    val typeName:   String
+    val inputType:   String
+    val isEditable:  Boolean
+    val alignRight:  Boolean
+    val typeName:    String
     def toStr(e: E): String
-    def tryFromStr(value: String): Try[E]
+    def fromStr(value: String): Either[Error, E]
   }
 
   object Cell {
@@ -34,10 +34,10 @@ trait cells extends viewFormat {
     def toStr(e: E)          = asString(e)
     def parse(s: String): E  = fromString(s)
 
-    final def tryFromStr(value:String): Try[E] =
+    final def fromStr(value: String): Either[Error, E] =
       Try(parse(value)) match {
-        case Failure(f) ⇒ Failure(new RuntimeException(s"'$value' is not a valid ${implicitly[ClassTag[E]].runtimeClass}", f))
-        case success    ⇒ success
+        case Success(v) ⇒ Right(v)
+        case Failure(_) ⇒ Left(ErrorMsg(s"'$value' is not a valid ${implicitly[ClassTag[E]].runtimeClass}"))
       }
   }
 
@@ -49,9 +49,9 @@ trait cells extends viewFormat {
     override val typeName             = s"Option[${wrapped.typeName}]"
     override def toStr(e: Option[A]) = e map wrapped.toStr getOrElse ""
 
-    def tryFromStr(value: String): Try[Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
-      case Some(v) ⇒ wrapped.tryFromStr(value).map(Some(_))
-      case None    ⇒ Success(None)
+    final def fromStr(value: String): Either[Error, Option[A]] = Option(value.trim).filterNot(_.isEmpty) match {
+      case Some(v) ⇒ wrapped.fromStr(value).right.map(Some(_))
+      case None    ⇒ Right(None)
     }
   }
 

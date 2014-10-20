@@ -1,12 +1,22 @@
 package no.penger.crud
 
 trait updateNotifier {
-  class UpdateNotifier {
-    def updated[ID, T](t: TableName, id: ID)(u: UpdateSuccess) = ()
-    def create[ID](t: TableName, id: ID) = ()
-    def deleted[ID](t: TableName, id: ID) = ()
 
-    def updateFailed[ID](t: TableName, id: ID)(f: UpdateFailed) = ()
-    def deleteFailed[ID](t: TableName, id: ID)(d: DeleteFailed) = ()
+  object res {
+    sealed trait Success
+    sealed trait Failure
+
+    case class Created[ID](table: TableName, id: ID) extends Success
+    case class Updated[ID](table: TableName, id: ID, column: ColumnName, oldValue: String, newValue: String) extends Success
+    case class Deleted[ID](table: TableName, id: ID) extends Success
+
+    case class CreateFailed(table: TableName, ts: Seq[Error]) extends Failure
+    case class UpdateFailed[ID](table: TableName, id: ID, e: Error, column: ColumnName, value: String) extends Failure
+    case class DeleteFailed[ID](table: TableName, id: ID, e: Error) extends Failure
+  }
+
+  class UpdateNotifier {
+    def notifyUpdated(s: res.Success) = ()
+    def notifyUpdateFailure(s: res.Failure) = ()
   }
 }

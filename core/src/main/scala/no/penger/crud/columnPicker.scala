@@ -8,15 +8,10 @@ trait columnPicker extends queryParser {
    * Given an abstract table, extract the lifted.Column[_] with name 'name'
    */
   object ColumnWithName {
-    def apply[T <: AbstractTable[_]](name: ColumnName)(slickTable: T): Column[Any] = {
-      val cols: Seq[Column[Any]] = ExtractColumnsFromSlickTable(slickTable)
-
-      cols collectFirst {
+    def apply[T <: AbstractTable[_]](name: ColumnName)(slickTable: T): Option[Column[Any]] =
+      ExtractColumnsFromSlickTable(slickTable) collectFirst {
         case col if nameOfColumn(col) =:= name ⇒ col
-      } getOrElse {
-        throw new RuntimeException(s"Couldn't find column $name")
       }
-    }
 
     def nameOfColumn(c: Column[Any]): ColumnName = QueryParser.columnNames.columnsFor(c.toNode).head
 

@@ -31,8 +31,8 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
       case req@POST(ContextPath(_, Seg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(params) match {
-          case Left(fails) ⇒ BadRequest ~> ResponseString(fails.mkString("\n"))
-          case Right(id)   ⇒ respond(s"created new ${editor.tableName}")(editor.viewRow(id))
+          case Left(failed)           ⇒ BadRequest ~> ResponseString(failed.ts.mkString("\n"))
+          case Right(res.Created(table, id)) ⇒ respond(s"created new $table")(editor.viewRow(id))
         }
 
       case req@GET(ContextPath(_, Seg(MountedAt :+ Id(id)))) ⇒
@@ -41,11 +41,15 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         )
 
       case req@POST(ContextPath(_, Seg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
-        editor.update(id, updates) match {
-          case Left(fails: Seq[UpdateFailed]) ⇒
-            BadRequest ~> ResponseString(fails.mkString("\n"))
-          case Right(okUpdates) ⇒
-            Ok ~> ResponseString(okUpdates.mkString("\n"))
+        updates.headOption match {
+          case Some((columnName, value)) =>
+            editor.update(id, columnName, value) match {
+              case Left(failed) ⇒
+                BadRequest ~> ResponseString(failed.toString)
+              case Right(u) ⇒
+                Ok ~> ResponseString(u.toString)
+            }
+          case _ => BadRequest ~> ResponseString("No column -> value provided")
         }
     }
   }

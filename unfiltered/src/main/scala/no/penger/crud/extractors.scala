@@ -9,7 +9,7 @@ trait extractors extends cells {
 
     /* extract id from url */
     object Id {
-      def unapply(parts: String): Option[ID] = idCell.tryFromStr(parts.split("/").head).toOption
+      def unapply(parts: String): Option[ID] = idCell.fromStr(parts.split("/").head).right.toOption
     }
 
     /* extract column updates */

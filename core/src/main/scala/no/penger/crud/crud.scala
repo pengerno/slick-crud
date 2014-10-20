@@ -1,29 +1,25 @@
 package no.penger
 
-import scala.slick.lifted.Query
 import scala.util.{Failure, Success, Try}
 
 package object crud {
 
   trait CrudAbstract extends editors with cellRowInstances
 
-  case class UpdateSuccess(column: ColumnName, oldValue: Any, newValue: Any, numUpdated: Int)
-  case class UpdateFailed(column: ColumnName, value: String, t: Throwable)
+  case class ColumnName(override val toString: String) extends AnyVal
+  case class TableName(override val toString: String) extends AnyVal
 
-  case object DeleteSuccess
-  case class DeleteFailed(reason: String)
+  sealed trait Error
+  case class ErrorMsg(msg: String) extends Error
+  case class ErrorExc(t: Throwable) extends Error
 
-  case class ColumnName(asString: String) extends AnyVal{
-    override def toString: String = asString
+  private[crud] implicit class OptionX[T](val ot: Option[T]) extends AnyVal {
+    def orError(msg: String): Either[Error, T] = ot map (Right(_)) getOrElse Left(ErrorMsg(msg))
   }
 
-  case class TableName(asString: String) extends AnyVal {
-    override def toString: String = asString
-  }
+  /* the rest work around limitations in scala stdlib, without taking scalaz dependency */
 
-  final type Q = Query[_, _, Seq]
-
-  def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
+  private [crud] def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
       case (Right(acc), Right(u)) ⇒ Right(acc :+ u)
       case (Left(acc),  Left(f))  ⇒ Left(acc :+ f)
@@ -31,26 +27,32 @@ package object crud {
       case (_,          Left(f))  ⇒ Left(Seq(f))
     }
 
-  implicit class TryToEiher[T](val e: Try[T]) extends AnyVal {
+  private[crud] implicit class TryX[T](val e: Try[T]) extends AnyVal {
     def toEither = e match {
       case Success(t) ⇒ Right(t)
       case Failure(f) ⇒ Left(f)
     }
   }
 
-  implicit class OptionToTry[T](val ot: Option[T]) extends AnyVal {
-    def toTry(leftMsg: String) = ot map Success.apply getOrElse Failure(new RuntimeException(leftMsg))
-  }
+  private[crud] implicit class EitherX[L, R](val e: Either[L, R]) extends AnyVal {
+    /* make 'Either' right biased*/
+    def foreach[U](f: R => U): Unit = e.right.foreach(f)
+    def map[RR](f: R => RR): Either[L, RR] = e.right.map(f)
+    def flatMap[RR](f: R => Either[L, RR]) = e.right.flatMap(f)
 
-  implicit class ExtendedEither[L, R](val e: Either[L, R]) extends AnyVal {
     def sideEffects(left: L ⇒ Unit, right: R ⇒ Unit) = {
       e.fold(left, right)
       e
     }
+
+    def mapBoth[LL, RR](left: L ⇒ LL, right: R ⇒ RR): Either[LL, RR] = e match {
+      case Right(r) ⇒ Right(right(r))
+      case Left(l)  ⇒ Left(left(l))
+    }
   }
 
   /* typesafe equals */
-  implicit class Equals[A](val a: A) extends AnyVal {
+  private[crud] implicit class Equals[A](val a: A) extends AnyVal {
     def =:=(b: A): Boolean = a == b
     def =/=(b: A): Boolean = a != b
   }
