@@ -7,7 +7,6 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.response._
 
-import scala.language.implicitConversions
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -52,6 +51,9 @@ trait StoreTables extends StoreDomain with databaseIntegration {
     def name      = column[Name]     ("name")
     def quantity  = column[Int]      ("quantity")
     def soldByRef = column[StoreId]  ("sold_by")
+
+    def notused1         = column[String]  ("notused")
+    def notused2(i: Int) = column[Int]     ("notused")
 
     def *        = (id, name, quantity, soldByRef) <> (Product.tupled, Product.unapply)
 

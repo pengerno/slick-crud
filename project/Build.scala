@@ -14,6 +14,7 @@ object Build extends sbt.Build {
     resolvers         ++= Seq(finnRepo)
   )
 
+
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ Seq(
     crossScalaVersions := Seq("2.10.4", "2.11.2"),
     publishMavenStyle  := true,
@@ -25,12 +26,14 @@ object Build extends sbt.Build {
     }
   )
 
+  val scalaReflect = "org.scala-lang" % "scala-reflect"
+
   def project(suffix: String, projectDeps: sbt.ClasspathDep[sbt.ProjectReference]*)(deps: ModuleID*) =
     Project(
       id           = s"$basename-$suffix",
       base         = file(s"./$suffix"),
       dependencies = projectDeps,
-      settings     = buildSettings ++ Seq(libraryDependencies ++= deps)
+      settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
   val transactionsVersion = "0-4"
@@ -38,8 +41,6 @@ object Build extends sbt.Build {
 
   lazy val crud = project("core")(
     "com.typesafe.slick"          %% "slick"                      % "2.1.0",
-    "org.scala-lang" 		           % "scala-reflect"              % "2.11.2",
-
     "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
   )
 
