@@ -62,6 +62,7 @@ object Build extends sbt.Build {
     "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
   )
 
-  lazy val root = Project(s"$basename-parent", file("."), settings = buildSettings)
-    .aggregate(crud, crudLogging, crudUnfiltered, crudDemo)
+  lazy val root = Project(s"$basename-parent", file("."),
+    settings = buildSettings :+ (mainClass in (Compile, run) := Some("no.penger.crud.Runner")))
+    .aggregate(crud, crudLogging, crudUnfiltered, crudDemo).dependsOn(crudDemo)
 }
