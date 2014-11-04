@@ -1,6 +1,7 @@
 import aether.Aether._
 import sbt.Keys._
 import sbt._
+import sbtrelease.ReleasePlugin._
 
 object Build extends sbt.Build {
 
@@ -15,7 +16,7 @@ object Build extends sbt.Build {
   )
 
 
-  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ Seq(
+  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
     crossScalaVersions := Seq("2.10.4", "2.11.2"),
     publishMavenStyle  := true,
     publish <<= deploy,
@@ -36,7 +37,7 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val transactionsVersion = "0-4"
+  val transactionsVersion = "1"
   val unfilteredVersion   = "0.8.2"
 
   lazy val crud = project("core")(
