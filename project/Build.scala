@@ -1,6 +1,7 @@
 import aether.Aether._
 import sbt.Keys._
 import sbt._
+import sbtrelease.ReleasePlugin._
 
 object Build extends sbt.Build {
 
@@ -10,13 +11,12 @@ object Build extends sbt.Build {
   override def settings = super.settings ++ Seq(
     scalacOptions      := Seq("-unchecked", "-deprecation", "-encoding", "UTF-8", "-feature"),
     organization       := "no.penger",
-    scalaVersion       := "2.11.2",
+    scalaVersion       := "2.11.4",
     resolvers         ++= Seq(finnRepo)
   )
 
 
-  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ Seq(
-    crossScalaVersions := Seq("2.10.4", "2.11.2"),
+  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
     publishMavenStyle  := true,
     publish <<= deploy,
     publishTo <<= version { v ⇒
@@ -36,7 +36,7 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val transactionsVersion = "0-4"
+  val transactionsVersion = "2"
   val unfilteredVersion   = "0.8.2"
 
   lazy val crud = project("core")(
@@ -50,7 +50,7 @@ object Build extends sbt.Build {
   )
 
   lazy val crudLogging = project("logging", crud)(
-    "com.typesafe.scala-logging"  %% "scala-logging-slf4j"        % "2.1.2"
+    "com.typesafe.scala-logging" %% "scala-logging"               % "3.1.0"
   )
 
   lazy val crudDemo = project("demo", crudLogging, crudUnfiltered)(
@@ -59,7 +59,7 @@ object Build extends sbt.Build {
     "org.slf4j"                    % "slf4j-simple"               % "1.7.7",
 
     "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion % "test",
-    "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
+    "org.scalatest"               %% "scalatest"                  % "2.2.2" % "test"
   )
 
   lazy val root = Project(s"$basename-parent", file("."),

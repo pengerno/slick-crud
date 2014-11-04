@@ -30,7 +30,7 @@ trait viewHtml extends view with viewFormatHtml {
         <td><a class="btn btn-default btn-s" href={base + "/" + cell.toStr(value)} role="button">{cell.toStr(value)}</a></td>
       else
         <td>{
-          checkedCheckbox(cell.inputType == "checkbox" && value == true)( //todo: come up with a way to know if the value corresponds to checked
+          checkedCheckbox(cell.inputType == "checkbox" && (value == true || value == Some(true)))( //todo: come up with a way to know if the value corresponds to checked
             enabled(isEditable && cell.isEditable)(
               <input
                 type={cell.inputType}
@@ -47,7 +47,7 @@ trait viewHtml extends view with viewFormatHtml {
       <div class="panel panel-primary">
         {header(showNew = true, showSeeAll = true)}
         <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
-        <table id={uniqueId} class="table" style="width:auto">
+        <table id={uniqueId} class="table">
           <thead>
             <tr>{namedCells.colNames.map(name ⇒ <th>{name}</th>)} </tr>
           </thead>{

@@ -1,9 +1,9 @@
 package no.penger.crud
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import no.penger.db.LiquibaseH2TransactionComponent
 import org.scalatest.FunSuite
-import org.scalautils.TypeCheckedTripleEquals
+import org.scalactic.TypeCheckedTripleEquals
 
 /**
  * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -42,7 +42,12 @@ class CrudTest
 
   val noop = new UpdateNotifier
   object failOnUpdateFail extends UpdateNotifier {
-    override def notifyUpdateFailure(f: res.Failure) = fail(f.toString)
+    override def notifyUpdateFailure(f: res.Failure) = {
+      f match {
+        case res.UpdateFailed(_, _, ErrorExc(t), _, _) => t.printStackTrace()
+      }
+      fail(f.toString)
+    }
   }
 
   object failOnUpdateSucceed extends UpdateNotifier {
@@ -147,6 +152,41 @@ class CrudTest
     val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(identity, _.id)
     db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
     e.update(ProductId(10001), ColumnName("name"), n3.asString)
+  }
+
+  test("option-mapping in table projection") {
+    class StoreT(tag: Tag) extends Table[(StoreId, Name, Option[Desc], Boolean)](tag, "stores") {
+      def id       = column[StoreId]("id")
+      def name     = column[Name]   ("name")
+      def descr    = column[Desc]   ("description")
+      val closed   = column[Boolean]("closed")
+      def *        = (id, name, descr.?, closed) //<-- map desc to Option[Desc] in projection
+    }
+    val Stores = TableQuery[StoreT]
+
+    val e   = Editor(ignoreMounted, Stores, failOnUpdateFail)(identity, _.id)
+    val sid = StoreId("asdasdsad")
+
+    db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
+    e.update(sid, ColumnName("description"), "")
+    e.update(sid, ColumnName("description"), "arne")
+  }
+
+  test("updating value that didnt exist") {
+    class StoreT(tag: Tag) extends Table[(StoreId, Name, Option[Desc], Boolean)](tag, "stores") {
+      def id       = column[StoreId]("id")
+      def name     = column[Name]   ("name")
+      def descr    = column[Desc]   ("description").?
+      val closed   = column[Boolean]("closed")
+      def *        = (id, name, descr, closed)
+    }
+    val Stores = TableQuery[StoreT]
+
+    val e   = Editor(ignoreMounted, Stores, failOnUpdateFail)(identity, _.id)
+    val sid = StoreId("asdasdsad2")
+
+    db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
+    e.update(sid, ColumnName("description"), "arne")
   }
 
   test("update when id column not selected"){
