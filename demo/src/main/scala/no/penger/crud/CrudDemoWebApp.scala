@@ -1,7 +1,7 @@
 package no.penger
 package crud
 
-import javax.servlet.{FilterConfig, ServletContext}
+import javax.servlet.ServletContext
 
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import unfiltered.filter.Plan
@@ -38,11 +38,7 @@ trait StoreTables extends StoreDomain with databaseIntegration {
     def name     = column[Name]   ("name")
     def descr    = column[Desc]   ("description").?
     def closed   = column[Boolean]("closed")
-
     def *        = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
-
-    def inventory = foreignKey("store_inventory", id.?, Products)(_.soldByRef.?)
-    def employees = foreignKey("store_employees", id, Employees)(_.worksAtRef)
   }
   val Stores = TableQuery[StoreT]
 
@@ -50,25 +46,16 @@ trait StoreTables extends StoreDomain with databaseIntegration {
     def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
     def name      = column[Name]     ("name")
     def quantity  = column[Int]      ("quantity")
-    def soldByRef = column[StoreId]  ("sold_by")
-
-    def notused1         = column[String]  ("notused")
-    def notused2(i: Int) = column[Int]     ("notused")
-
-    def *        = (id, name, quantity, soldByRef) <> (Product.tupled, Product.unapply)
-
-    def soldBy   = foreignKey("product_store", soldByRef, Stores)(_.id)
+    def soldBy    = column[StoreId]  ("sold_by")
+    def *         = (id, name, quantity, soldBy) <> (Product.tupled, Product.unapply)
   }
   val Products = TableQuery[ProductT]
 
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     val id         = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
-    val name       = column[Name]      ("name")
-    val worksAtRef = column[StoreId]   ("works_at")
-
-    def *          = (id, name, worksAtRef) <> (Employee.tupled, Employee.unapply)
-
-    def worksAt    = foreignKey("employee_store", worksAtRef, Stores)(_.id)
+    val name      = column[Name]      ("name")
+    val worksAt    = column[StoreId]   ("works_at")
+    def *         = (id, name, worksAt) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
 }
@@ -105,8 +92,8 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
     val db      = CrudDemoWebApp.db
     val ctx     = context.getContextPath
 
+    /* generate some data to play with */
     import profile.simple._
-
     db.withTransaction{implicit s ⇒
       Stores    insertAll (GenData.stores    :_*)
       Employees insertAll (GenData.employees :_*)
@@ -119,25 +106,19 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
     private val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
 
     /* tuple projection */
-    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldByRef, t.quantity, t.name)), _.id)
+    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)), _.id)
 
     /* no custom query, but has foreign keys to employees and products */
     private val stores    = Editor("/stores", Stores, notifier)(identity, _.id).sub(
-      employees.on(_.worksAtRef),
-      products.on(_.soldByRef)
+      employees.on(_.worksAt),
+      products.on(_.soldBy)
     )
 
     override val editors = Seq(employees, products, stores)
 
-    override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] = Html5(PageTemplate.page(ctx, title)(body))
+    override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] =
+      Html5(PageTemplate.page(ctx, title)(body))
   }
 
-  /* set in init() because that's when we receive context */
-  var crudDemo: CrudUnfilteredDemo = _
-
-  override def init(config: FilterConfig): Unit = {
-    crudDemo = new CrudUnfilteredDemo(config.getServletContext)
-  }
-
-  override def intent = crudDemo.intent
+  override lazy val intent = new CrudUnfilteredDemo(config.getServletContext).intent
 }

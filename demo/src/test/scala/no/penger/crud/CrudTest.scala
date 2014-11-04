@@ -138,7 +138,7 @@ class CrudTest
   }
 
   test("update only chosen columns"){
-    val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(_.map(r ⇒ (r.id, r.soldByRef)), _.id)
+    val e   = Editor(ignoreMounted, Products, failOnUpdateSucceed)(_.map(r ⇒ (r.id, r.soldBy)), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
     e.update(pid, ColumnName("name"), n3.asString)
   }
