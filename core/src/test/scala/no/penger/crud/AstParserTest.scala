@@ -2,9 +2,9 @@ package no.penger.crud
 
 import org.scalatest.FunSuite
 
-class QueryParserTest
+class AstParserTest
   extends FunSuite
-  with queryParser
+  with astParser
   with slick.driver.JdbcDriver {
 
   import simple._
@@ -33,27 +33,27 @@ class QueryParserTest
   }
 
   test("understand simple columns"){
-    myAssert(TableQuery[OneTwoThreeT], Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT], Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
   }
 
   test("understand map to one column "){
-    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(c("two")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(c("two")))(AstParser.colNames)
   }
 
   test("understand map to two columns "){
-    myAssert(TableQuery[OneTwoThreeT].map(t ⇒ (t.two, t.three)), Seq(c("two"), c("three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].map(t ⇒ (t.two, t.three)), Seq(c("two"), c("three")))(AstParser.colNames)
   }
 
   test("understand map / nested projections "){
-    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t ⇒ (t.two, t.three)).map(_._1), Seq(c("two")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t ⇒ (t.two, t.three)).map(_._1), Seq(c("two")))(AstParser.colNames)
   }
 
   test("understand case class projection"){
-    myAssert(TableQuery[OneTwoThreeST], Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeST], Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
   }
 
   test("understand query"){
-    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
+    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
   }
 
   test("understand query with join"){
@@ -62,11 +62,11 @@ class QueryParserTest
       def * = one
     }
     myAssert(TableQuery[OneTwoThreeST].join(TableQuery[TT]).on(_.one === _.one).map(_._1),
-             Seq(c("one"), c("two"), c("three")))(QueryParser.columnNames)
+             Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
   }
 
   test("get tablename"){
-    val one = QueryParser.tableNameFrom(TableQuery[OneTwoThreeT])
+    val one = AstParser.tableName(TableQuery[OneTwoThreeT])
     assertResult(TableName("t"))(one)
   }
 }

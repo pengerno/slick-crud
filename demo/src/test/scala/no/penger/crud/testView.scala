@@ -22,7 +22,7 @@ trait testView extends view {
     }
   }
 
-  override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCells[ROW]): View[ID, ROW] =
+  override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCellRow[ROW]): View[ID, ROW] =
     new View[ID, ROW] {
       def renderRow(row: ROW): Seq[ElemFormat] =
         namedCells.cellsWithUnpackedValues(row).map {

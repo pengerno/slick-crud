@@ -12,7 +12,7 @@ trait viewHtml extends view with viewFormatHtml {
   override def append(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
-  override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCells[ROW]): View[ID, ROW] =
+  override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCellRow[ROW]): View[ID, ROW] =
     ViewHtml(ctx + base, tableName, isEditable, id, namedCells)
 
   case class ViewHtml[ID: Cell, ROW](
@@ -20,7 +20,7 @@ trait viewHtml extends view with viewFormatHtml {
     tableName:  TableName,
     isEditable: Boolean,
     idCol:      ColumnName,
-    namedCells: NamedCells[ROW]) extends View[ID, ROW] {
+    namedCells: NamedCellRow[ROW]) extends View[ID, ROW] {
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)

@@ -3,7 +3,7 @@ package no.penger.crud
 import scala.slick.lifted.AbstractTable
 import scala.util.{Failure, Success, Try}
 
-trait crudActions extends namedCells with columnPicker with databaseIntegration {
+trait crudActions extends namedCellRows with columnPicker with databaseIntegration {
 
   import profile.simple._
 
@@ -16,7 +16,7 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
       db withSession (implicit s ⇒ q.firstOption)
 
     /**
-     * Update a row in a table with the key -> values in 'updates'
+     * Update a column 'columnName' for row with id 'id' with value 'value'
      *
      * We take two sets of named cells here. 'namedCellsQuery' just to verify that the
      *  columns to be updated are exposed by the current query, and we use 'namedCellsTable'
@@ -25,11 +25,11 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
      *  @return old value of cell on success, error otherwise
      */
     def update[TABLE <: AbstractTable[_], ID: BaseColumnType : Cell](
-        namedCellsQuery: NamedCells[_],
+        namedCellsQuery: NamedCellRow[_],
         table:           Query[TABLE, TABLE#TableElementType, Seq],
         idColumn:        TABLE ⇒ Column[ID],
         id:              ID,
-        namedCellsTable: NamedCells[TABLE#TableElementType],
+        namedCellsTable: NamedCellRow[TABLE#TableElementType],
         columnName:      ColumnName,
         value:           String): Either[Error, String] =
 
@@ -47,7 +47,7 @@ trait crudActions extends namedCells with columnPicker with databaseIntegration 
 
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:        Query[TABLE, TABLE#TableElementType, Seq],
-        namedCells:   NamedCells[TABLE#TableElementType],
+        namedCells:   NamedCellRow[TABLE#TableElementType],
         idColumn:     TABLE ⇒ Column[ID],
         params:       Map[ColumnName, String],
         primaryKey:   ColumnName): Either[Seq[Error], ID] = {

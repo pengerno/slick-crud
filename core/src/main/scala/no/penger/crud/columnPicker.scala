@@ -3,7 +3,7 @@ package no.penger.crud
 import scala.reflect.api
 import scala.slick.lifted.{AbstractTable, Column}
 
-trait columnPicker extends queryParser {
+trait columnPicker extends astParser {
 
   /**
    * Given an abstract table, extract the lifted.Column[_] with name 'name'
@@ -11,10 +11,8 @@ trait columnPicker extends queryParser {
   object ColumnWithName {
     def apply[T <: AbstractTable[_]](name: ColumnName)(slickTable: T): Option[Column[Any]] =
       ExtractColumnsFromSlickTable(slickTable) collectFirst {
-        case col if nameOfColumn(col) =:= name ⇒ col
+        case col if AstParser.colName(col) =:= name ⇒ col
       }
-
-    def nameOfColumn(c: Column[Any]): ColumnName = QueryParser.columnNames.columnsFor(c.toNode).head
 
     object ExtractColumnsFromSlickTable {
       /** To get at the columns here, we have to resort to reflection - I don't see any other way */

@@ -1,6 +1,6 @@
 package no.penger.crud
 
-trait view extends namedCells with viewFormat {
+trait view extends namedCellRows with viewFormat {
 
   def append(one: PageFormat, two: PageFormat): PageFormat
 
@@ -9,7 +9,7 @@ trait view extends namedCells with viewFormat {
     tableName:  TableName,
     isEditable: Boolean,
     id:         ColumnName,
-    namedCells: NamedCells[ROW]): View[ID, ROW]
+    ncr:        NamedCellRow[ROW]): View[ID, ROW]
 
   abstract class View[ID: Cell, ROW] {
     def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat

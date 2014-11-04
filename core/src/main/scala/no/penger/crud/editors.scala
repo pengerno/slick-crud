@@ -8,7 +8,7 @@ import scala.slick.lifted.AbstractTable
  * An editor is the glue, and about the only thing clients really need to see
  *
  *  - render responses through a 'View'
- *  - talks to the database through an 'Editable'
+ *  - talks to the database through 'crudActions'
  *  - renders and parses values through 'Cell's
  *  - sends notifications of (failed) updates thorough an 'UpdateNotifier'
  *  - composes with other 'Editor's (see 'on()', 'single()' and 'sub()')
@@ -42,10 +42,10 @@ trait editors extends editorAbstracts with crudActions with view {
       (query:      Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
        idColumn:   ROW ⇒ Column[ID])
       (implicit r: CellRow[ROW#TableElementType]) =
-      new Editor[ROW, LP, P, ID](mounted, table, query, idColumn, notifier, isEditable, QueryParser.tableNameFrom(table), editors = Nil, isOnlyOneRow = false)
+      new Editor[ROW, LP, P, ID](mounted, table, query, idColumn, notifier, isEditable, AstParser.tableName(table), editors = Nil, isOnlyOneRow = false)
   }
 
-  case class Editor[ROW <: AbstractTable[_], LP: ClassTag, P: CellRow, ID: BaseColumnType] (
+  case class Editor[ROW <: AbstractTable[_], LP: ClassTag, P: CellRow, ID: BaseColumnType] private (
       mounted:      String,
       table:        Query[ROW, ROW#TableElementType, Seq],
       query:        Query[ROW, ROW#TableElementType, Seq] ⇒ Query[LP, P, Seq],
@@ -67,11 +67,11 @@ trait editors extends editorAbstracts with crudActions with view {
     /* return a new editor that shows just one db row with a vertical table of columns */
     def single = copy(isOnlyOneRow = true)
 
-    val primaryKey:      ColumnName                       = QueryParser.columnNames(table.map(idColumn)).head
-    val namedCellsQuery: NamedCells[P]                    = NamedCells(query(table))
-    val namedCellsTable: NamedCells[ROW#TableElementType] = NamedCells(table)
+    val primaryKey:      ColumnName                         = AstParser.colNames(table.map(idColumn)).head
+    val namedCellsQuery: NamedCellRow[P]                    = NamedCellRow(query(table))
+    val namedCellsTable: NamedCellRow[ROW#TableElementType] = NamedCellRow(table)
 
-    def createView[T](ncs: NamedCells[T]) = View[ID, T](mounted, tableName, isEditable, primaryKey, ncs)
+    def createView[T](ncr: NamedCellRow[T]) = View[ID, T](mounted, tableName, isEditable, primaryKey, ncr)
 
     override def view = {
       val view = createView(namedCellsQuery)
