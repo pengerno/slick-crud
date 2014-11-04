@@ -1,6 +1,7 @@
 import aether.Aether._
 import sbt.Keys._
 import sbt._
+import sbtrelease.ReleasePlugin._
 
 object Build extends sbt.Build {
 
@@ -15,7 +16,7 @@ object Build extends sbt.Build {
   )
 
 
-  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ Seq(
+  lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
     crossScalaVersions := Seq("2.10.4", "2.11.2"),
     publishMavenStyle  := true,
     publish <<= deploy,
