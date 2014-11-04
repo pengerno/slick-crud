@@ -3,7 +3,7 @@ package crud
 
 import javax.servlet.ServletContext
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.response._
 

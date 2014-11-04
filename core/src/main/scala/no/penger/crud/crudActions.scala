@@ -1,6 +1,6 @@
 package no.penger.crud
 
-import scala.slick.lifted.AbstractTable
+import scala.slick.lifted.{PlainColumnExtensionMethods, AbstractTable}
 import scala.util.{Failure, Success, Try}
 
 trait crudActions extends namedCellRows with columnPicker with databaseIntegration {
@@ -38,12 +38,29 @@ trait crudActions extends namedCellRows with columnPicker with databaseIntegrati
         cell           ← namedCellsTable cellByName columnName orError s"table has no cell with name $columnName"
         validValue     ← cell fromStr value
         row            = table.filter(idColumn(_) === id)
-                         //cookies to whoever can get rid of the .get() - 'cols' doesn't make sense outside the scope of map()
-        updater        = row map (cols => ColumnWithName(columnName)(cols).get)
-        oldValue       ← Try(db withSession (implicit s ⇒ updater.first)).toEither.left.map[Error](ErrorExc)
+        updater        = row map (slickTable =>
+                            (findColumnWithName(slickTable, columnName) map ensureOptionalColumn(validValue)).get
+                          )
+        oldValueOpt    ← Try(db withSession (implicit s ⇒ updater.firstOption)).toEither.left.map[Error](ErrorExc)
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
-      } yield cell.toStr(oldValue)
+      } yield flattenOpt(oldValueOpt) match {
+        case ov      if cell.typeName.startsWith("Option") => cell.toStr(ov)
+        case Some(v)                                       => cell.toStr(v)
+        case None                                          => "None"
+      }
 
+    def flattenOpt(a: Any): Option[Any] = a match {
+      case Some(v) => flattenOpt(v)
+      case None    => None
+      case any     => Some(any)
+    }
+
+    /* this is needed to hack around a case where a column is declared as column[T], but used in
+    *   the table projection as a column[Option[T]] */
+    def ensureOptionalColumn(value: Any)(c: Column[Any]) = value match {
+      case v: Option[_] => new PlainColumnExtensionMethods(c).?.asInstanceOf[Column[Any]]
+      case _ => c
+    }
 
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:        Query[TABLE, TABLE#TableElementType, Seq],

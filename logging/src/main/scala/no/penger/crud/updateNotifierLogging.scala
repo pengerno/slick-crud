@@ -1,6 +1,6 @@
 package no.penger.crud
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 
 trait updateNotifierLogging extends updateNotifier {
   trait UpdateNotifierLogging extends UpdateNotifier {

@@ -1,5 +1,6 @@
 package no.penger.crud
 
+import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
