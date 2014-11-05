@@ -23,19 +23,14 @@ trait columnPicker extends astParser {
         val mirror    = u.runtimeMirror(this.getClass.getClassLoader)
         val reflected = mirror.reflect(slickTable)
 
-        def isNullarySlickColumn(s: u.SymbolApi) = {
-          val nullaryColumn = s.typeSignature.typeConstructor match {
-            case nullary: u.NullaryMethodTypeApi => Some(nullary.resultType.typeConstructor)
-            case _                               => None
-          }
-          nullaryColumn =:= Some(u.typeOf[Column[Any]].typeConstructor)
-        }
+        def hasColumnReturnType(s: u.SymbolApi) =
+          s.typeSignature.resultType.erasure =:= u.typeOf[Column[Any]].erasure
 
         val foundCols: Iterable[Column[Any]] = reflected.symbol.asType.toType.members.collect {
-          case m if isNullarySlickColumn(m) && m.isMethod ⇒
+          case m if hasColumnReturnType(m) && m.isMethod ⇒
             reflected.reflectMethod(m.asMethod).apply().asInstanceOf[Column[Any]]
 
-          case m if isNullarySlickColumn(m) && !m.isTerm ⇒
+          case m if hasColumnReturnType(m) && !m.isTerm ⇒
             reflected.reflectField(m.asTerm).get.asInstanceOf[Column[Any]]
         }
 
