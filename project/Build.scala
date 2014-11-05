@@ -11,13 +11,13 @@ object Build extends sbt.Build {
   override def settings = super.settings ++ Seq(
     scalacOptions      := Seq("-unchecked", "-deprecation", "-encoding", "UTF-8", "-feature"),
     organization       := "no.penger",
-    scalaVersion       := "2.11.2",
+    scalaVersion       := "2.11.4",
     resolvers         ++= Seq(finnRepo)
   )
 
 
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
-    crossScalaVersions := Seq("2.10.4", "2.11.2"),
+    crossScalaVersions := Seq("2.10.4", "2.11.4"),
     publishMavenStyle  := true,
     publish <<= deploy,
     publishTo <<= version { v ⇒
@@ -37,7 +37,7 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val transactionsVersion = "1"
+  val transactionsVersion = "2"
   val unfilteredVersion   = "0.8.2"
 
   lazy val crud = project("core")(
