@@ -1,9 +1,9 @@
 package no.penger.crud
 
-import com.typesafe.scalalogging.slf4j.LazyLogging
+import com.typesafe.scalalogging.LazyLogging
 import no.penger.db.LiquibaseH2TransactionComponent
 import org.scalatest.FunSuite
-import org.scalautils.TypeCheckedTripleEquals
+import org.scalactic.TypeCheckedTripleEquals
 
 /**
  * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.

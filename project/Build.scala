@@ -17,7 +17,6 @@ object Build extends sbt.Build {
 
 
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
-    crossScalaVersions := Seq("2.10.4", "2.11.4"),
     publishMavenStyle  := true,
     publish <<= deploy,
     publishTo <<= version { v ⇒
@@ -51,7 +50,7 @@ object Build extends sbt.Build {
   )
 
   lazy val crudLogging = project("logging", crud)(
-    "com.typesafe.scala-logging"  %% "scala-logging-slf4j"        % "2.1.2"
+    "com.typesafe.scala-logging" %% "scala-logging"               % "3.1.0"
   )
 
   lazy val crudDemo = project("demo", crudLogging, crudUnfiltered)(
