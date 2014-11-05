@@ -41,9 +41,20 @@ trait crudActions extends namedCellRows with columnPicker with databaseIntegrati
                          //cookies to whoever can get rid of the .get() - 'cols' doesn't make sense outside the scope of map()
         updater        = row map (cols => ColumnWithName(columnName)(cols).get)
         oldValue       ← Try(db withSession (implicit s ⇒ updater.first)).toEither.left.map[Error](ErrorExc)
-        _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
-      } yield cell.toStr(oldValue)
+        _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(doUpdate(updater,validValue)))
+      } yield Try(cell.toStr(oldValue)).getOrElse(cell.toStr(Some(oldValue)))
 
+    def doUpdate(updater: Query[Column[Any], Any, Seq], validValue: Any)(implicit s: Session): Try[Int] = {
+      val firstResult = Try(updater update validValue)
+
+      (firstResult, validValue) match {
+        /* if a Column[T] was made into a Column[Option[T]] for the table projection, try this to recover */
+        case (Failure(t), Some(value)) ⇒
+          val secondResult = Try(updater update value)
+          if (secondResult.isFailure) firstResult else secondResult
+        case (res, _) ⇒ res
+      }
+    }
 
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:        Query[TABLE, TABLE#TableElementType, Seq],

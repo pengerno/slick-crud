@@ -149,6 +149,23 @@ class CrudTest
     e.update(ProductId(10001), ColumnName("name"), n3.asString)
   }
 
+  test("option-mapping in table projection") {
+    class StoreT(tag: Tag) extends Table[(StoreId, Name, Option[Desc], Boolean)](tag, "stores") {
+      def id       = column[StoreId]("id")
+      def name     = column[Name]   ("name")
+      def descr    = column[Desc]   ("description")
+      val closed   = column[Boolean]("closed")
+      def *        = (id, name, descr.?, closed) //<-- map desc to Option[Desc] in projection
+    }
+    val Stores = TableQuery[StoreT]
+
+    val e   = Editor(ignoreMounted, Stores, failOnUpdateFail)(identity, _.id)
+    val sid = StoreId("asdasdsad")
+
+    db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), Some(Desc("π")), false))}
+    e.update(sid, ColumnName("description"), "™")
+  }
+
   test("update when id column not selected"){
     val e   = Editor(ignoreMounted, Products, failOnUpdateFail)(_.map(_.name), _.id)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
