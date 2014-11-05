@@ -19,5 +19,11 @@ trait extractors extends cells {
           acc + (ColumnName(n) → req.parameterValues(n).head)
         ))
     }
+
+    object FuzzySeg {
+      def unapply(path: String): Option[List[String]] =
+        Some(path.split("/").filterNot(_.isEmpty).toList)
+    }
+
   }
 }

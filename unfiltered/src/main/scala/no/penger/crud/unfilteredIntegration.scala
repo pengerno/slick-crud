@@ -21,26 +21,26 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
     def intent:Plan.Intent = {
 
-      case req@GET(ContextPath(_, Seg(MountedAt))) ⇒
+      case req@GET(ContextPath(_, FuzzySeg(MountedAt))) ⇒
         respond(title = MountedAt.head)(editor.view)
 
-      case req@GET(ContextPath(_, Seg(MountedAt :+ "new"))) ⇒
+      case req@GET(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) ⇒
         respond(title = s"new ${editor.tableName}") (
           editor.viewNew
         )
 
-      case req@POST(ContextPath(_, Seg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
+      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(params) match {
           case Left(failed)           ⇒ BadRequest ~> ResponseString(failed.ts.mkString("\n"))
           case Right(res.Created(table, id)) ⇒ respond(s"created new $table")(editor.viewRow(id))
         }
 
-      case req@GET(ContextPath(_, Seg(MountedAt :+ Id(id)))) ⇒
+      case req@GET(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) ⇒
         respond(title = s"${editor.tableName} for $id") (
           editor.viewRow(id)
         )
 
-      case req@POST(ContextPath(_, Seg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
+      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
         updates.headOption match {
           case Some((columnName, value)) =>
             editor.update(id, columnName, value) match {
