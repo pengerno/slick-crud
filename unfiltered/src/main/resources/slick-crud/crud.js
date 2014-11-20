@@ -84,10 +84,9 @@ no.penger.crud.neew = function(url, root){
         form.setAttribute("action", url + "/new");
 
         $(root).find('tr').each(function(index) {
-            if (!index) return;
             var $self = $(this);
 
-            var id    = $($self.find("td")[0]).text();
+            var id     = $self.find("th").text();
             var $input = $self.find("input");
 
             var value;

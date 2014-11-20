@@ -26,41 +26,41 @@ trait viewHtml extends view with viewFormatHtml {
     val uniqueId    = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
 
     override def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat =
+      <td>{
       if (idCol =:= columnName)
-        <td><a class="btn btn-default btn-s" href={base + "/" + cell.toStr(value)} role="button">{cell.toStr(value)}</a></td>
+        <a href={base + "/" + cell.toStr(value)} class="btn-style">{cell.toStr(value)}</a>
+      else if (cell.inputType == "checkbox")
+        enabled(isEditable && cell.isEditable)(checkedCheckbox(cell.inputType == "checkbox" && (value == true || value == Some(true)))(
+          <input type="checkbox"/>
+        ))
       else
-        <td>{
-          checkedCheckbox(cell.inputType == "checkbox" && (value == true || value == Some(true)))( //todo: come up with a way to know if the value corresponds to checked
-            enabled(isEditable && cell.isEditable)(
-              <input
-                type={cell.inputType}
-                class={"form-control"}
-                align={if (cell.alignRight) "right" else "left"}
-                value={cell.toStr(value)}
-                placeholder={cell.typeName}
-              ></input>
-            )
-          )
-        }</td>
+        enabled(isEditable && cell.isEditable)(<input
+            class={if (cell.alignRight) "right" else "left"}
+            type={cell.inputType}
+            placeholder={cell.typeName}
+            value={cell.toStr(value)}
+            autocomplete="off"
+          />)
+        }
+      </td>
 
-    override def many(rows: Seq[(ID, ROW)]) = {
-      <div class="panel panel-primary">
-        {header(showNew = true, showSeeAll = true)}
-        <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
-        <table id={uniqueId} class="table">
+    override def many(rows: Seq[(ID, ROW)]) =
+      <div>
+        <table id={uniqueId}>
+          {header(showNew = true, showSeeAll = true)}
           <thead>
-            <tr>{namedCells.colNames.map(name ⇒ <th>{name}</th>)} </tr>
-          </thead>{
-            rows.map {
-              case (id, row) ⇒ <tr class="form-group" db-id={Cell.toStr(id)}>{
+            <tr>{namedCells.colNames.map(name ⇒ <th class="columnHeader">{name}</th>)} </tr>
+          </thead><tbody>{
+            rows.zipWithIndex.map {
+              case ((id, row), idx) ⇒ <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
                 namedCells.cellsWithUnpackedValues(row).map {
                   case ((colName, cell), value) ⇒ renderCell(colName, value, cell)
                 }
               }</tr>
             }
-          }</table>
+          }</tbody></table>
+        <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
       </div>
-    }
 
     override def notFound(idOpt: Option[ID]) =
       idOpt match {
@@ -69,31 +69,26 @@ trait viewHtml extends view with viewFormatHtml {
       }
 
     override def single(id: ID, row: ROW) = {
-      <div class="panel panel-primary">
-        {header(showNew = true, showSeeAll = true)}
-        <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
-        <table id={uniqueId} db-id={Cell.toStr(id)} class="table table-bordered table-hover table-condensed">
+        <table id={uniqueId} db-id={Cell.toStr(id)}>
+          {header(showNew = true, showSeeAll = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {namedCells.cellsWithUnpackedValues(row).map{
-            case ((name, cell), value) ⇒ <tr><td>{name}</td>{renderCell(name, value, cell)
+            case ((name, cell), value) ⇒ <tr><td class="columnHeader">{name}</td>{renderCell(name, value, cell)
           }</tr>}}
         </table>
-      </div>
+        <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
     }
 
     override def newPage = {
-      <div class="panel panel-primary">
-        {header(showNew = false, showSeeAll = true)}
-        <script type="text/javascript">{s"no.penger.crud.neew('$base', '#$uniqueId')"}</script>
-        <table id={uniqueId} class="table table-bordered table-hover">
-          <thead><tr><th>Column</th><th>Value</th></tr></thead>{
-            namedCells.cells.map{
-              case (name, cell) ⇒ <tr><td>{name}</td>{renderEmptyCell(cell)}</tr>
-            }
+      <table id={uniqueId}>
+        {header(showNew = false, showSeeAll = true, showSave = true)}
+        <tbody> {
+          namedCells.cells.map{
+            case (name, cell) ⇒ <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell)}</tr>
           }
-        </table>
-        <button id="submit" type="submit" class="btn btn-default">Save</button>
-      </div>
+        }</tbody>
+      </table>
+      <script type="text/javascript">{s"no.penger.crud.neew('$base', '#$uniqueId')"}</script>
     }
 
     def renderEmptyCell(cell: Cell[Any]): ElemFormat =
@@ -105,18 +100,19 @@ trait viewHtml extends view with viewFormatHtml {
           ></input>
       </td>
 
-    def header(showNew: Boolean, showSeeAll: Boolean) = {
-      <div class="panel-heading">
-        {tableName}
-        {if (showNew)    <a class="btn btn-default btn-xs" href={base + "/new"} role="button">New</a>     else NodeSeq.Empty}
-        {if (showSeeAll) <a class="btn btn-default btn-xs" href={base}          role="button">See all</a> else NodeSeq.Empty}
-      </div>
+    def header(showNew: Boolean, showSeeAll: Boolean, showSave: Boolean = false) = {
+      <caption class="columnHeader">
+        <strong>{tableName}</strong>
+        {if (showNew)    <a             class="btn-style" href={base + "/new"} >New</a>     else NodeSeq.Empty}
+        {if (showSeeAll) <a             class="btn-style" href={base}          >See all</a> else NodeSeq.Empty}
+        {if (showSave)   <a id="submit" class="btn-style" href="#"             >Save</a>    else NodeSeq.Empty}
+      </caption>
     }
-
-    def enabled(isEnabled: Boolean)(elem: xml.Elem) =
-      if (isEnabled) elem else elem % xml.Attribute("disabled", Seq(xml.Text("")), xml.Null)
 
     def checkedCheckbox(isChecked: Boolean)(elem: xml.Elem) =
       if (isChecked) elem % xml.Attribute("checked", Seq(xml.Text("")), xml.Null) else elem
+
+    def enabled(isEnabled: Boolean)(elem: xml.Elem) =
+      if (isEnabled) elem else elem % xml.Attribute("disabled", Seq(xml.Text("")), xml.Null)
   }
 }

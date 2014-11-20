@@ -7,7 +7,7 @@ trait cellRowInstances extends cells {
    **/
   def mappedCellRow[Mapped, Tupled <: Product : CellRow](apply: Tupled ⇒ Mapped, unapply: Mapped ⇒ Option[Tupled]) =
     new CellRow[Mapped] {
-      private val wrapped                   = implicitly[CellRow[Tupled]]
+      val wrapped                           = implicitly[CellRow[Tupled]]
       override def packValues(vs: Seq[Any]) = apply(wrapped.packValues(vs))
       override def unpackValues(e: Mapped)  = wrapped.unpackValues(unapply(e).get)
       override def cells                    = wrapped.cells
