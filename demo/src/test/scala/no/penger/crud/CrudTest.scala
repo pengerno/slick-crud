@@ -264,6 +264,6 @@ class CrudTest
 
     assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), Some(Seq(pid1.id.toString, n1.asString, q1.toString, storeId.id)))))
     assert(Right(res.Deleted(e.tableName, pid1)) === e.delete(pid1))
-    assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), None)))
+    assert(e.viewRow(pid1).isEmpty)
   }
 }

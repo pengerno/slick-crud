@@ -15,7 +15,6 @@ trait view extends namedCellRows with viewFormat {
     def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat
     def many(rows: Seq[(ID, ROW)]): PageFormat
     def single(id: ID, row: ROW): PageFormat
-    def notFound(idOpt: Option[ID]): PageFormat
-    def newPage: PageFormat
+    def newPage(error: Option[String]): PageFormat
   }
 }

@@ -79,7 +79,7 @@ trait editors extends editorAbstracts with crudActions with view {
       if (isOnlyOneRow){
         crudAction.readRow(query(table)) match {
           case Some(row)       ⇒ view.single(namedCellsQuery.extractCell(row, primaryKey, idCell), row)
-          case _               ⇒ view.notFound(None)
+          case _               ⇒ view.newPage(Some(s"Found no row for $tableName"))
         }
       } else view.many {
         crudAction.read(query(table)).map {
@@ -94,11 +94,11 @@ trait editors extends editorAbstracts with crudActions with view {
 
       rowOpt match {
         case Some(row) ⇒ editors.map(_(id).view).foldLeft(view.single(id, row))(append)
-        case _         ⇒ view.notFound(Some(id))
+        case _         ⇒ view.newPage(Some(s"Found no row for $tableName and id $id"))
       }
     }
 
-    override def viewNew = createView(namedCellsTable).newPage
+    override def viewNew = createView(namedCellsTable).newPage(None)
 
     override def update(id: ID, columnName: ColumnName, value: String) =
       crudAction.update(namedCellsQuery, table, idColumn, id, namedCellsTable, columnName, value) mapBoth (

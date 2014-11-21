@@ -47,7 +47,7 @@ trait viewHtml extends view with viewFormatHtml {
     override def many(rows: Seq[(ID, ROW)]) =
       <div>
         <table id={uniqueId}>
-          {header(showNew = true, showSeeAll = true)}
+          {header}
           <thead>
             <tr>{namedCells.colNames.map(name ⇒ <th class="columnHeader">{name}</th>)} </tr>
           </thead><tbody>{
@@ -62,15 +62,9 @@ trait viewHtml extends view with viewFormatHtml {
         <script type="text/javascript">no.penger.crud.view('{base}', '#{uniqueId}')</script>
       </div>
 
-    override def notFound(idOpt: Option[ID]) =
-      idOpt match {
-        case Some(id) ⇒ <h3>{s"Found no referenced $tableName for id ${Cell.toStr(id)}"}</h3>
-        case None     ⇒ <h3>{s"Found no referenced $tableName"}</h3>
-      }
-
     override def single(id: ID, row: ROW) = {
         <table id={uniqueId} db-id={Cell.toStr(id)}>
-          {header(showNew = true, showSeeAll = true)}
+          {header}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {namedCells.cellsWithUnpackedValues(row).map{
             case ((name, cell), value) ⇒ <tr><td class="columnHeader">{name}</td>{renderCell(name, value, cell)
@@ -79,9 +73,17 @@ trait viewHtml extends view with viewFormatHtml {
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
     }
 
-    override def newPage = {
+    override def newPage(errorOpt: Option[String]) = {
       <table id={uniqueId}>
-        {header(showNew = false, showSeeAll = true, showSave = true)}
+        <caption class="columnHeader">
+          <strong>{
+            errorOpt match {
+              case Some(error) => error + ". create it here"
+              case _           => tableName
+            }}</strong>
+          <a             class="btn-style" href={base} >See all</a>
+          <a id="submit" class="btn-style" href="#"    >Save</a>
+        </caption>
         <tbody> {
           namedCells.cells.map{
             case (name, cell) ⇒ <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell)}</tr>
@@ -100,14 +102,12 @@ trait viewHtml extends view with viewFormatHtml {
           ></input>
       </td>
 
-    def header(showNew: Boolean, showSeeAll: Boolean, showSave: Boolean = false) = {
+    def header =
       <caption class="columnHeader">
         <strong>{tableName}</strong>
-        {if (showNew)    <a             class="btn-style" href={base + "/new"} >New</a>     else NodeSeq.Empty}
-        {if (showSeeAll) <a             class="btn-style" href={base}          >See all</a> else NodeSeq.Empty}
-        {if (showSave)   <a id="submit" class="btn-style" href="#"             >Save</a>    else NodeSeq.Empty}
+        {if (isEditable) <a class="btn-style" href={base + "/new"} >New</a> else NodeSeq.Empty}
+        <a class="btn-style" href={base}          >See all</a>
       </caption>
-    }
 
     def checkedCheckbox(isChecked: Boolean)(elem: xml.Elem) =
       if (isChecked) elem % xml.Attribute("checked", Seq(xml.Text("")), xml.Null) else elem

@@ -32,15 +32,12 @@ trait testView extends view {
       override def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]) =
         cell.toStr(value)
 
-      override def notFound(idOpt: Option[ID]) =
-        Seq(TestView(tableName, namedCells.cells, Left((idOpt.map(id ⇒ Cell.toStr(id)), None))))
-
       override def many(rows: Seq[(ID, ROW)]): PageFormat =
         Seq(TestView(tableName, namedCells.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
       override def single(id: ID, row: ROW): PageFormat =
         Seq(TestView(tableName, namedCells.cells, Left((Some(Cell.toStr(id)), Some(renderRow(row))))))
 
-      override def newPage: PageFormat = Seq.empty
+      override def newPage(errorOpt: Option[String]): PageFormat = Seq.empty
   }
 }
