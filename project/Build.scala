@@ -15,14 +15,13 @@ object Build extends sbt.Build {
     resolvers         ++= Seq(finnRepo)
   )
 
-
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
-    publishMavenStyle  := true,
-    publish <<= deploy,
-    publishTo <<= version { v ⇒
-      val proxy = "http://mavenproxy.finntech.no/finntech-internal-"
+    updateOptions       := updateOptions.value.withCachedResolution(cachedResoluton = true),
+    publishMavenStyle   := true,
+    publish            <<= deploy,
+    publishTo          <<= version { v ⇒
       val end = if(v endsWith "SNAPSHOT") "snapshot" else "release"
-      Some("Finn-" + end at proxy + end)
+      Some("Finn-" + end at "http://mavenproxy.finntech.no/finntech-internal-" + end)
     }
   )
 
@@ -37,9 +36,9 @@ object Build extends sbt.Build {
     )
 
   val transactionsVersion = "2"
-  val unfilteredVersion   = "0.8.2"
+  val unfilteredVersion   = "0.8.3"
 
-  lazy val crud = project("core")(
+  lazy val crud           = project("core")(
     "com.typesafe.slick"          %% "slick"                      % "2.1.0",
     "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
   )
@@ -49,11 +48,13 @@ object Build extends sbt.Build {
     "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "provided;test"
   )
 
-  lazy val crudLogging = project("logging", crud)(
+  lazy val crudLogging    = project("logging", crud)(
     "com.typesafe.scala-logging" %% "scala-logging"               % "3.1.0"
   )
 
-  lazy val crudDemo = project("demo", crudLogging, crudUnfiltered)(
+  lazy val crudAll        = project("all", crudUnfiltered, crudLogging)()
+
+  lazy val crudDemo       = project("demo", crudAll)(
     "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion,
     "net.databinder"              %% "unfiltered-jetty"           % unfilteredVersion,
     "org.slf4j"                    % "slf4j-simple"               % "1.7.7",
@@ -64,5 +65,5 @@ object Build extends sbt.Build {
 
   lazy val root = Project(s"$basename-parent", file("."),
     settings = buildSettings :+ (mainClass in (Compile, run) := Some("no.penger.crud.Runner")))
-    .aggregate(crud, crudLogging, crudUnfiltered, crudDemo).dependsOn(crudDemo)
+    .aggregate(crud, crudLogging, crudUnfiltered, crudAll, crudDemo).dependsOn(crudDemo)
 }
