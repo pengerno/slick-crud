@@ -1,6 +1,8 @@
 package no.penger.crud
 
-import scala.slick.lifted.{PlainColumnExtensionMethods, AbstractTable}
+import scala.reflect.ClassTag
+import scala.slick.ast.ScalaBaseType
+import scala.slick.lifted.AbstractTable
 import scala.util.{Failure, Success, Try}
 
 trait crudActions extends namedCellRows with columnPicker with databaseIntegration {
@@ -43,26 +45,20 @@ trait crudActions extends namedCellRows with columnPicker with databaseIntegrati
                           )
         oldValueOpt    ← Try(db withSession (implicit s ⇒ updater.firstOption)).toEither.left.map[Error](ErrorExc)
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
-      } yield flattenOpt(oldValueOpt) match {
-        case ov      if cell.typeName.startsWith("Option") => cell.toStr(ov)
-        case Some(v)                                       => cell.toStr(v)
-        case None                                          => "None"
-      }
-
-    def flattenOpt(a: Any): Option[Any] = a match {
-      case Some(v) => flattenOpt(v)
-      case None    => None
-      case any     => Some(any)
-    }
+      } yield oldValueOpt.toString
 
     /* this is needed to hack around a case where a column is declared as column[T], but used in
     *   the table projection as a column[Option[T]] */
-    def ensureOptionalColumn(value: Any)(c: Column[Any]) = (value, c.toNode) match {
-      case (v: Option[_], slick.ast.OptionApply(_)) => c
-      case (v: Option[_], _) => new PlainColumnExtensionMethods(c).?.asInstanceOf[Column[Any]]
-      case _ => c
-    }
+    def ensureOptionalColumn(value: Any)(c: Column[Any]) = {
+      /* this is a hack to be able to use c.? below */
+      implicit def evidence: ScalaBaseType[Any] = new slick.ast.ScalaBaseType[Any]()(implicitly[ClassTag[Any]], null)
 
+      (value, c.toNode) match {
+      case (v: Option[_], slick.ast.OptionApply(_)) => c
+      case (v: Option[_], _                       ) => c.?.asInstanceOf[Column[Any]]
+      case _                                        => c
+    }
+    }
     def create[TABLE <: AbstractTable[_], ID: BaseColumnType: Cell](
         table:        Query[TABLE, TABLE#TableElementType, Seq],
         namedCells:   NamedCellRow[TABLE#TableElementType],
