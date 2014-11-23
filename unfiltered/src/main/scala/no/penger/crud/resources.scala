@@ -7,7 +7,8 @@ import unfiltered.response._
 trait resources {
   val whitelist = List(
     "/slick-crud/crud.js",
-    "/slick-crud/crud.css"
+    "/slick-crud/crud.css",
+    "/slick-crud/3rdparty/jquery-1.11.1.min.js"
   )
 
   /* this will serve slick-cruds frontend resources, you can override it if you want to do that yourself */
