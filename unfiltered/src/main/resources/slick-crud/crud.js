@@ -74,7 +74,7 @@ no.penger.crud.single = function(url, root){
 
 no.penger.crud.neew = function(url, root){
     function setup(){
-        $("#submit").click(submit);
+        $(root + "submit").click(submit);
     }
 
     function submit(){

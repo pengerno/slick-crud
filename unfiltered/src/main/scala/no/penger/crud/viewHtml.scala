@@ -87,7 +87,7 @@ trait viewHtml extends view with viewFormatHtml {
                 case _           => tableName
               }}</strong>
             <a             class="btn-style" href={base} >See all</a>
-            <a id="submit" class="btn-style" href="#"    >Save</a>
+            <a id={uniqueId + "submit"} class="btn-style" href="#"    >Save</a>
           </caption>
           <tbody> {
             namedCells.cells.map{
