@@ -12,15 +12,16 @@ It provides the following features:
 - Optional/Nullable values
 - Notifications of (failed) updates
 
-slick-crud is available for slick 2.1.0, for scala 2.10 and 2.11.
-
+slick-crud is available for slick 2.1.0 on scala 2.11.
+ 
 Initial idea and implementation by [@teigen][teigen], maintenance/rewrite by [@elacin][elacin]
 
 ## Usage
 
 slick-crud requires tables with a single (non-composite) primary key. It also requires instances of `SimpleCell`
- for every type which is used in a `Table`. If your table is projected to a type other than a Tuple, there
- also needs to be instances available of `CellRow` to map back and forth.
+ for every type which is used in a `Table`. All the individual cells are automatically collected in a tupled `CellRow`.
+ If your table is projected to a type other than a Tuple, you also need to use `mappedCellRow()`
+ to provide mapping back and forth to a tuple representation.
 
 A complete, runnable example is available [here][demo].
 
@@ -30,7 +31,7 @@ Run it by cloning the git project and run `sbt run`
 ## Implementation
 
 The bundled [concretization][crud-unfiltered] of slick-crud uses [unfiltered][unfiltered]
-for http, and Html5 with [bootstrap][bootstrap] to render the frontend.
+for http, and Html5 with to render the frontend.
 The core of slick-crud is kept abstract, without much knowledge of neither, hence it should be relatively
 easy to replace any if they don't fit your preferences.
 
@@ -46,6 +47,5 @@ We will try to keep the public API relatively constant, but no guarantees just y
 [demo]: demo/src/main/scala/no/penger/crud/CrudDemoWebApp.scala
 [crud-unfiltered]: unfiltered/src/main/scala/no/penger/crud
 [unfiltered]: https://github.com/unfiltered/unfiltered
-[bootstrap]: https://github.com/twbs/bootstrap
 [columnPicker]: core/src/main/scala/no/penger/crud/columnPicker.scala
 [queryParser]: core/src/main/scala/no/penger/crud/queryParser.scala

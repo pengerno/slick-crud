@@ -4,38 +4,37 @@ import java.util.UUID
 
 import scala.xml.NodeSeq
 
-trait viewHtml extends view with viewFormatHtml {
+trait renderersHtml extends renderers with viewFormatHtml {
 
   /* context path */
   val ctx: String
 
-  override def append(one: NodeSeq, two: NodeSeq) =
+  override def combine(one: NodeSeq, two: NodeSeq) =
     one ++ two
 
-  override def View[ID: Cell, ROW](base: String, tableName: TableName, isEditable: Boolean, id: ColumnName, namedCells: NamedCellRow[ROW]): View[ID, ROW] =
-    ViewHtml(ctx + base, tableName, isEditable, id, namedCells)
+  override def Renderer[ID: Cell, TABLE <: AbstractTable[_], LP, P]
+                       (ref: TableRef[ID, TABLE, LP, P]) =
+    RendererHtml(ref)
 
-  case class ViewHtml[ID: Cell, ROW](
-    base:       String,
-    tableName:  TableName,
-    isEditable: Boolean,
-    idCol:      ColumnName,
-    namedCells: NamedCellRow[ROW]) extends View[ID, ROW] {
+  case class RendererHtml[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]) extends Renderer[ID, P] {
+    val base = ctx + ref.base.mounted
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
-    def newUniqueId = tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
+    def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
-    override def renderCell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat =
+    override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat =
       <td>{
-        if (idCol =:= columnName)
+        if (ref.base.primaryKey =:= columnName)
           <a href={base + "/" + cell.toStr(value)} class="btn-style">{cell.toStr(value)}</a>
         else if (cell.inputType == "checkbox")
-          enabled(isEditable && cell.isEditable)(checkedCheckbox(cell.inputType == "checkbox" && (value == true || value == Some(true)))(
-            <input type="checkbox"/>
-          ))
+          enabled(ref.base.isEditable && cell.isEditable)(
+            checkedCheckbox(cell.inputType == "checkbox" && (value == true || value == Some(true)))(
+              <input type="checkbox"/>
+            )
+          )
         else
-          enabled(isEditable && cell.isEditable)(<input
+          enabled(ref.base.isEditable && cell.isEditable)(<input
               class={if (cell.alignRight) "right" else "left"}
               type={cell.inputType}
               placeholder={cell.typeName}
@@ -45,18 +44,18 @@ trait viewHtml extends view with viewFormatHtml {
           }
       </td>
 
-    override def many(rows: Seq[(ID, ROW)]) = withId{
+    override def rows(rows: Seq[(ID, P)]) = withId{
       uniqueId ⇒
         <div>
           <table id={uniqueId}>
             {header}
             <thead>
-              <tr>{namedCells.colNames.map(name ⇒ <th class="columnHeader">{name}</th>)} </tr>
+              <tr>{ref.cells.colNames.map(name ⇒ <th class="columnHeader">{name}</th>)} </tr>
             </thead><tbody>{
               rows.zipWithIndex.map {
                 case ((id, row), idx) ⇒ <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
-                  namedCells.cellsWithUnpackedValues(row).map {
-                    case ((colName, cell), value) ⇒ renderCell(colName, value, cell)
+                  ref.cells.cellsWithUnpackedValues(row).map {
+                    case ((colName, c), value) ⇒ cell(colName, value, c)
                   }
                 }</tr>
               }
@@ -65,39 +64,43 @@ trait viewHtml extends view with viewFormatHtml {
         </div>
     }
 
-    override def single(id: ID, row: ROW) = withId {
+    override def row(id: ID, row: P) = withId {
       uniqueId ⇒
         <table id={uniqueId} db-id={Cell.toStr(id)}>
           {header}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
-          {namedCells.cellsWithUnpackedValues(row).map{
-            case ((name, cell), value) ⇒ <tr><td class="columnHeader">{name}</td>{renderCell(name, value, cell)
+          {ref.cells.cellsWithUnpackedValues(row).map{
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c)
           }</tr>}}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
     }
 
-    override def newPage(errorOpt: Option[String]) = withId {
+    override def newRow[T](knownColumn: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         <table id={uniqueId}>
           <caption class="columnHeader">
             <strong>{
-              errorOpt match {
-                case Some(error) => error + ". create it here"
-                case _           => tableName
+              knownColumn match {
+                case Some((colName, value)) => s"New row for $colName = $value for ${ref.base.tableName}"
+                case _                      => s"New row for ${ref.base.tableName}"
               }}</strong>
             <a             class="btn-style" href={base} >See all</a>
             <a id={uniqueId + "submit"} class="btn-style" href="#"    >Save</a>
           </caption>
           <tbody> {
-            namedCells.cells.map{
-              case (name, cell) ⇒ <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell)}</tr>
+            ref.cells.cells.map{ t => (t, knownColumn) match {
+              case ((name, cell), Some((colName, value))) if name =:= colName =>
+                <tr><th class="columnHeader">{name}</th>{renderEmptyCellWithValue(cell, value)}</tr>
+              case ((name, cell), _) ⇒
+                <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell)}</tr>
+              }
             }
           }</tbody>
         </table>
         <script type="text/javascript">{s"no.penger.crud.neew('$base', '#$uniqueId')"}</script>
     }
-
+    //todo: refactor
     def renderEmptyCell(cell: Cell[Any]): ElemFormat =
       <td>
         <input
@@ -107,10 +110,20 @@ trait viewHtml extends view with viewFormatHtml {
           ></input>
       </td>
 
+    def renderEmptyCellWithValue(cell: Cell[Any], value: Any): ElemFormat =
+      <td>
+        <input
+          type={cell.inputType}
+          class={"form-control"}
+          placeholder={cell.typeName}
+          value={cell.toStr(value)}
+          ></input>
+      </td>
+
     def header =
       <caption class="columnHeader">
-        <strong>{tableName}</strong>
-        {if (isEditable) <a class="btn-style" href={base + "/new"} >New</a> else NodeSeq.Empty}
+        <strong>{ref.base.tableName}</strong>
+        {if (ref.base.isEditable) <a class="btn-style" href={base + "/new"} >New</a> else NodeSeq.Empty}
         <a class="btn-style" href={base}          >See all</a>
       </caption>
 

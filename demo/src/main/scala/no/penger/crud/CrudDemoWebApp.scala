@@ -10,10 +10,10 @@ import unfiltered.response._
 import scala.xml.NodeSeq
 
 trait StoreDomain{
-  case class Name(asString: String)
-  case class Desc(asString: String)
+  case class Name(value: String)
+  case class Desc(value: String)
 
-  case class StoreId(id: String)
+  case class StoreId(value: String)
   case class Store(id: StoreId, name: Name, description: Option[Desc], closed: Boolean)
 
   case class ProductId(id: Long)
@@ -23,15 +23,15 @@ trait StoreDomain{
   case class Employee(id: EmployeeId, name: Name, worksAt: StoreId)
 }
 
-trait StoreTables extends StoreDomain with databaseIntegration {
+trait StoreTables extends StoreDomain with slickIntegration {
   import profile.simple._
 
   /* these type class instances are to enable the use of the types in slick */
-  implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.asString, Desc)
+  implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.value, Desc)
   implicit lazy val m2 = MappedColumnType.base[EmployeeId, Long](  _.id,       EmployeeId)
-  implicit lazy val m3 = MappedColumnType.base[Name,       String](_.asString, Name)
+  implicit lazy val m3 = MappedColumnType.base[Name,       String](_.value, Name)
   implicit lazy val m4 = MappedColumnType.base[ProductId,  Long](  _.id,       ProductId)
-  implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.id,       StoreId)
+  implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.value,       StoreId)
 
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id       = column[StoreId]("id")
@@ -62,18 +62,18 @@ trait StoreTables extends StoreDomain with databaseIntegration {
 
 trait StoreCrudInstances extends StoreDomain with cellRowInstances {
   /**
-   * we need to provide cell instanced for every type we expose through slick-crud,
-   *  in order for it to know how to render and parse them
+   * we need to provide cell instances for every type we expose through slick-crud,
+   *  in order for it to know how to render and parse them, analogously to slick
    */
-  implicit val c1 = SimpleCell[Name](_.asString, Name)
-  implicit val c2 = SimpleCell[Desc](_.asString, Desc)
-  implicit val c3 = SimpleCell[StoreId](_.id, StoreId, isEditable = true)
+  implicit val c1 = SimpleCell[Name](_.value, Name(_).ensuring(_.value.nonEmpty))
+  implicit val c2 = SimpleCell[Desc](_.value, Desc(_).ensuring(_.value.nonEmpty))
+  implicit val c3 = SimpleCell[StoreId](_.value, StoreId(_).ensuring(_.value.nonEmpty), isEditable = true)
   implicit val c4 = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
   implicit val c5 = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
 
   /**
-   * These editable-instances are necessary for now in order to expose
-   *  tables that have default projections to a case class for example.
+   * These cellRow mapping instances are necessary in order to expose
+   *  tables that have default projections to non-tuple structures.
    */
   implicit val e1 = mappedCellRow(Employee.tupled, Employee.unapply)
   implicit val e2 = mappedCellRow(Product.tupled,  Product.unapply)
@@ -102,17 +102,13 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
-    /* sorted by name*/
-    private val employees = Editor("/employees", Employees, notifier, isEditable = true)(_.sortBy(_.name.asc), _.id)
+    val employeeRef  = TableRef("/employees", Employees, isEditable = true)(_.id).projected(_.sortBy(_.name.asc))
+    val productsRef  = TableRef("/products", Products)(_.id).projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
+    val storesRef    = TableRef("/stores", Stores)(_.id)
 
-    /* tuple projection */
-    private val products  = Editor("/products", Products,  notifier)(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)), _.id)
-
-    /* no custom query, but has foreign keys to employees and products */
-    private val stores    = Editor("/stores", Stores, notifier)(identity, _.id).sub(
-      employees.on(_.worksAt),
-      products.on(_.soldBy)
-    )
+    val employees    = Editor(employeeRef, notifier).linkedOn(_.worksAt, storesRef)(_.id)
+    val products     = Editor(productsRef, notifier).linkedOn(_._2, storesRef)(_.id)
+    val stores       = Editor(storesRef,   notifier).linkedOn(_.id, employeeRef)(_.worksAt).linkedOn(_.id, productsRef)(_._2)
 
     override val editors = Seq(employees, products, stores)
 

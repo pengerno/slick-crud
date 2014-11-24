@@ -5,10 +5,10 @@ import unfiltered.filter.request.ContextPath
 import unfiltered.request._
 import unfiltered.response._
 
-trait unfilteredIntegration extends Plan with editorAbstracts with extractors with resources {
+trait unfilteredIntegration extends Plan with editors with extractors with resources {
 
   /* all the editors you want to expose */
-  def editors:        Seq[EditorAbstract[_]]
+  def editors: Seq[EditorAbstract[_]]
 
   /* how you want to respond to the request, nice for wrapping the output in more html, for example */
   def respond(title: String)(body: PageFormat): ResponseFunction[Any]
@@ -17,7 +17,7 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
   case class EditorUnfiltered[ID](editor: EditorAbstract[ID]) extends Extractors[ID] {
     val idCell    = editor.idCell
-    val MountedAt = Seg.unapply(editor.mounted).get
+    val MountedAt = Seg.unapply(editor.mountedAt).get
 
     def intent:Plan.Intent = {
 
@@ -32,7 +32,7 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
       case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(params) match {
           case Left(failed)           ⇒ BadRequest ~> ResponseString(failed.ts.mkString("\n"))
-          case Right(res.Created(table, id)) ⇒ respond(s"created new $table")(editor.viewRow(id))
+          case Right(Created(table, id)) ⇒ respond(s"created new $table")(editor.viewRow(id))
         }
 
       case req@GET(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) ⇒

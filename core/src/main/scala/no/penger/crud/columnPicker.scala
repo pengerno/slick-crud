@@ -1,7 +1,7 @@
 package no.penger.crud
 
 import scala.reflect.api
-import scala.slick.lifted.{AbstractTable, Column}
+import scala.slick.lifted.Column
 
 trait columnPicker extends astParser {
 

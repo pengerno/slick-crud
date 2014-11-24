@@ -1,23 +1,15 @@
 package no.penger
 
-import scala.util.{Failure, Success, Try}
-
-package object crud {
+package object crud extends errors with results {
 
   trait CrudAbstract extends editors with cellRowInstances
 
-  case class ColumnName(override val toString: String) extends AnyVal
-  case class TableName(override val toString: String) extends AnyVal
+  type AbstractTable[T] = scala.slick.lifted.AbstractTable[T]
 
-  sealed trait Error
-  case class ErrorMsg(msg: String) extends Error
-  case class ErrorExc(t: Throwable) extends Error
+  case class ColumnName(override val toString: String)
+  case class TableName(override val toString: String)
 
-  private[crud] implicit class OptionX[T](val ot: Option[T]) extends AnyVal {
-    def orError(msg: String): Either[Error, T] = ot map (Right(_)) getOrElse Left(ErrorMsg(msg))
-  }
-
-  /* the rest work around limitations in scala stdlib, without taking scalaz dependency */
+  /* work around limitations in scala stdlib, without taking scalaz dependency */
 
   private [crud] def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
@@ -27,33 +19,31 @@ package object crud {
       case (_,          Left(f))  ⇒ Left(Seq(f))
     }
 
-  private[crud] implicit class TryX[T](val e: Try[T]) extends AnyVal {
-    def toEither = e match {
-      case Success(t) ⇒ Right(t)
-      case Failure(f) ⇒ Left(f)
-    }
-  }
-
   private[crud] implicit class EitherX[L, R](val e: Either[L, R]) extends AnyVal {
     /* make 'Either' right biased*/
     def foreach[U](f: R => U): Unit = e.right.foreach(f)
     def map[RR](f: R => RR): Either[L, RR] = e.right.map(f)
     def flatMap[RR](f: R => Either[L, RR]) = e.right.flatMap(f)
-
-    def sideEffects(left: L ⇒ Unit, right: R ⇒ Unit) = {
-      e.fold(left, right)
-      e
-    }
-
-    def mapBoth[LL, RR](left: L ⇒ LL, right: R ⇒ RR): Either[LL, RR] = e match {
+    
+    def biMap[LL, RR](left: L ⇒ LL, right: R ⇒ RR): Either[LL, RR] = e match {
       case Right(r) ⇒ Right(right(r))
       case Left(l)  ⇒ Left(left(l))
     }
   }
 
-  /* typesafe equals */
-  private[crud] implicit class Equals[A](val a: A) extends AnyVal {
-    def =:=(b: A): Boolean = a == b
-    def =/=(b: A): Boolean = a != b
+  implicit class ListX[T](val ts: List[T]) extends AnyVal {
+    def zipMap[U](f: T ⇒ U): List[(U, T)] = ts.map(t ⇒ (f(t), t))
+  }
+
+  private[crud] implicit class AnyX[A](val a: A) extends AnyVal {
+    /* typesafe equals */
+    def =:=(aa: A): Boolean = a == aa
+    def =/=(aa: A): Boolean = a != aa
+
+    /* apply side effect and return value */
+    def andThen(f: A ⇒ Unit) = {
+      f(a)
+      a
+    }
   }
 }
