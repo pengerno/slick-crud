@@ -31,6 +31,7 @@ trait astParser {
 
         /* mostly ignore joins, pick out the original table */
         case Bind(_, Join(_, _, left, _, _, _), _) ⇒ forNamedColumns(left)
+        case Join(_, _, left, _, _, _) ⇒ forNamedColumns(left)
 
         /* select a subset of the columns (recurse further to find the definitions) */
         case Bind(_, from, selects) ⇒ selectFrom(selects, forNamedColumns(from))
