@@ -8,7 +8,9 @@ trait tableRefs extends namedCellRows with slickIntegration {
      * A reference to a slick table
      *
      * @param table the TableQuery[E] of the table we want to expose
-     * @param idCol a function that maps a projection L to its primary key column. Multi-column primary keys are not supported.
+     * @param idCol a function that maps the default projection 'TABLE'
+     *              to its primary key column.
+     *              Multi-column primary keys are not supported.
      */
     def apply[ID: BaseColumnType: Cell, TABLE <: AbstractTable[_]]
       (mounted:     String,

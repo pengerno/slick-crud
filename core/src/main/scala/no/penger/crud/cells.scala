@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
-trait cells extends viewFormat {
+trait cells {
 
   /**
    * A Cell is the mapping of a type to/from the stringly typed web.

@@ -4,7 +4,7 @@ import java.util.UUID
 
 import scala.xml.NodeSeq
 
-trait renderersHtml extends renderers with viewFormatHtml {
+trait renderersHtml extends renderers with renderFormatHtml {
 
   /* context path */
   val ctx: String
@@ -76,7 +76,7 @@ trait renderersHtml extends renderers with viewFormatHtml {
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
     }
 
-    override def newRow[T](knownColumn: Option[(ColumnName, T)]) = withId {
+    override def missingRow[T](knownColumn: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         <table id={uniqueId}>
           <caption class="columnHeader">
@@ -85,8 +85,8 @@ trait renderersHtml extends renderers with viewFormatHtml {
                 case Some((colName, value)) => s"New row for $colName = $value for ${ref.base.tableName}"
                 case _                      => s"New row for ${ref.base.tableName}"
               }}</strong>
-            <a             class="btn-style" href={base} >See all</a>
-            <a id={uniqueId + "submit"} class="btn-style" href="#"    >Save</a>
+            <a class="btn-style" href={base}>See all</a>
+            <a id={uniqueId + "submit"} class="btn-style" href="#">Save</a>
           </caption>
           <tbody> {
             ref.cells.cells.map{ t => (t, knownColumn) match {

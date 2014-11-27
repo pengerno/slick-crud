@@ -79,7 +79,7 @@ trait crudActions extends tableRefs with columnPicker with slickIntegration with
       profile.createDeleteInvoker(profile.deleteCompiler.run(q.toNode).tree, ())
 
     /* to be able to use Column[Any].? */
-    implicit val evidence: ScalaBaseType[Any] = null
+    private implicit val evidence: ScalaBaseType[Any] = null
 
     /* this is needed to hack around a case where a column is declared as column[T], but used in
      *   the table projection as a column[Option[T]]

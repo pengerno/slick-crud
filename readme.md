@@ -36,7 +36,7 @@ The core of slick-crud is kept abstract, without much knowledge of neither, henc
 easy to replace any if they don't fit your preferences.
 
 ## Status
-Slick doesn't exactly enable this use out of the box, which resulted in some [hairy][columnPicker] [code][queryParser].
+Slick doesn't exactly enable this use out of the box, which resulted in some [hairy][columnPicker] [code][astParser].
 Although we have used this for a long while internally, we fully expect there to be issues as people use
 it more creatively. Bug reports welcome :)
 
@@ -48,4 +48,4 @@ We will try to keep the public API relatively constant, but no guarantees just y
 [crud-unfiltered]: unfiltered/src/main/scala/no/penger/crud
 [unfiltered]: https://github.com/unfiltered/unfiltered
 [columnPicker]: core/src/main/scala/no/penger/crud/columnPicker.scala
-[queryParser]: core/src/main/scala/no/penger/crud/queryParser.scala
+[astParser]: core/src/main/scala/no/penger/crud/astParser.scala

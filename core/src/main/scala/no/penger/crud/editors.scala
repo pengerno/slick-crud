@@ -10,7 +10,7 @@ trait editors extends editorAbstracts with linkedTables {
                     n:     UpdateNotifier,
                     links: Seq[LinkedTable[P]] = Seq.empty) extends EditorAbstract[ID]{
 
-    val tableRenderer = Renderer(ref)
+    val r = Renderer(ref)
 
     override val idCell    = implicitly[Cell[ID]]
     override val mountedAt = ref.base.mounted
@@ -49,17 +49,17 @@ trait editors extends editorAbstracts with linkedTables {
         _     ⇒ Deleted(     tableName, id)        andThen n.notifyUpdated
       )
 
-    override def viewNew = tableRenderer.newRow(None)
+    override def viewNew = r missingRow None
 
     override def view = crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
-      case Nil     ⇒ tableRenderer newRow None
-      case idsRows ⇒ tableRenderer rows idsRows
+      case Nil     ⇒ r missingRow None
+      case idsRows ⇒ r rows idsRows
     }
 
     override def viewRow(id: ID) = crudAction.read(ref.queryById(id)) match {
-      case Nil        ⇒ tableRenderer newRow Some((ref.base.primaryKey, id))
-      case row :: Nil ⇒ (links map (_.view(row))).foldLeft(tableRenderer row(id, row))(combine)
-      case idsRows    ⇒ tableRenderer rows (idsRows zipMap ref.extractIdFromRow)
+      case Nil        ⇒ r missingRow Some((ref.base.primaryKey, id))
+      case row :: Nil ⇒ links.foldLeft(r row(id, row))((acc, link) ⇒ combine(acc, link.view(row)))
+      case idsRows    ⇒ r rows (idsRows zipMap ref.extractIdFromRow)
     }
   }
 }

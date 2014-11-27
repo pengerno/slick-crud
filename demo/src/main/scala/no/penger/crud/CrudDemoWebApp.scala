@@ -28,17 +28,17 @@ trait StoreTables extends StoreDomain with slickIntegration {
 
   /* these type class instances are to enable the use of the types in slick */
   implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.value, Desc)
-  implicit lazy val m2 = MappedColumnType.base[EmployeeId, Long](  _.id,       EmployeeId)
+  implicit lazy val m2 = MappedColumnType.base[EmployeeId, Long]  (  _.id,  EmployeeId)
   implicit lazy val m3 = MappedColumnType.base[Name,       String](_.value, Name)
-  implicit lazy val m4 = MappedColumnType.base[ProductId,  Long](  _.id,       ProductId)
-  implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.value,       StoreId)
+  implicit lazy val m4 = MappedColumnType.base[ProductId,  Long]  (  _.id,  ProductId)
+  implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.value, StoreId)
 
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
-    def id       = column[StoreId]("id")
-    def name     = column[Name]   ("name")
-    def descr    = column[Desc]   ("description").?
-    def closed   = column[Boolean]("closed")
-    def *        = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
+    def id        = column[StoreId]("id")
+    def name      = column[Name]   ("name")
+    def descr     = column[Desc]   ("description").?
+    def closed    = column[Boolean]("closed")
+    def *         = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
   }
   val Stores = TableQuery[StoreT]
 
@@ -52,9 +52,9 @@ trait StoreTables extends StoreDomain with slickIntegration {
   val Products = TableQuery[ProductT]
 
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
-    val id         = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
+    val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
-    val worksAt    = column[StoreId]   ("works_at")
+    val worksAt   = column[StoreId]   ("works_at")
     def *         = (id, name, worksAt) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]

@@ -37,6 +37,6 @@ trait testRenderers extends renderers {
       override def row(id: ID, row: P): PageFormat =
         Seq(TestView(ref.base.tableName, ref.cells.cells, Left((Some(Cell.toStr(id)), Some(renderRow(row))))))
 
-      override def newRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
+      override def missingRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
   }
 }
