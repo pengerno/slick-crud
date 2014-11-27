@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 import scala.slick.ast.ScalaBaseType
 import scala.util.{Failure, Success, Try}
 
-trait crudActions extends tableRefs with columnPicker with slickIntegration with updateNotifier {
+trait crudActions extends tableRefs with columnPicker {
 
   import profile.simple._
 

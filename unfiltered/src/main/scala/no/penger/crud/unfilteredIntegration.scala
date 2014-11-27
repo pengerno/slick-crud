@@ -5,7 +5,7 @@ import unfiltered.filter.request.ContextPath
 import unfiltered.request._
 import unfiltered.response._
 
-trait unfilteredIntegration extends Plan with editors with extractors with resources {
+trait unfilteredIntegration extends Plan with editorAbstracts with extractors with resources {
 
   /* all the editors you want to expose */
   def editors: Seq[EditorAbstract[_]]

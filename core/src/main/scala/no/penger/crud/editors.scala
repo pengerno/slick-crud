@@ -2,34 +2,16 @@
 package no.penger
 package crud
 
-trait editors extends editorAbstracts with linkedTables {
+trait editors extends editorAbstracts with crudActions with renderers with updateNotifier {
   import profile.simple._
 
   case class Editor[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
-                   (ref:   TableRef[ID, TABLE, LP, P],
-                    n:     UpdateNotifier,
-                    links: Seq[LinkedTable[P]] = Seq.empty) extends EditorAbstract[ID]{
-
-    val r = Renderer(ref)
+                   (ref: TableRef[ID, TABLE, LP, P],
+                    n:   UpdateNotifier) extends EditorAbstract[ID]{
 
     override val idCell    = implicitly[Cell[ID]]
     override val mountedAt = ref.base.mounted
     override val tableName = ref.base.tableName
-
-    /**
-     * Combine this editor with another database table referenced by 'other' on 
-     *  where 'columnValue' of a given database row matches 'other's' 'columnQuery'
-     * 
-     * Linked tables are exposed when /one/ row of the base table is exposed.
-     * 
-     * The split between 'Editor' and 'TableRef' enables exposed tables to
-     *  have reciprocal links.
-     */
-    def linkedOn[OID, OTABLE <: AbstractTable[_], OLP, OP, COL: BaseColumnType : Cell]
-                (columnValue: P ⇒ COL,
-                 other:       TableRef[OID, OTABLE, OLP, OP])
-                (columnQuery: OLP ⇒ Column[COL]) =
-      copy(links = links :+ LinkedTableImpl(columnValue, other.filtered(columnQuery))(other.base.idCell))
 
     override def create(params: Map[ColumnName, String]) =
       crudAction.create(ref.base, params) biMap (
@@ -49,17 +31,27 @@ trait editors extends editorAbstracts with linkedTables {
         _     ⇒ Deleted(     tableName, id)        andThen n.notifyUpdated
       )
 
-    override def viewNew = r missingRow None
+    override val viewNew = Renderer(ref) missingRow None
 
     override def view = crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
-      case Nil     ⇒ r missingRow None
-      case idsRows ⇒ r rows idsRows
+      case Nil     ⇒ Renderer(ref) missingRow None
+      case idsRows ⇒ Renderer(ref) rows idsRows
     }
 
     override def viewRow(id: ID) = crudAction.read(ref.queryById(id)) match {
-      case Nil        ⇒ r missingRow Some((ref.base.primaryKey, id))
-      case row :: Nil ⇒ links.foldLeft(r row(id, row))((acc, link) ⇒ combine(acc, link.view(row)))
-      case idsRows    ⇒ r rows (idsRows zipMap ref.extractIdFromRow)
+      case Nil        ⇒ Renderer(ref) missingRow Some((ref.base.primaryKey, id))
+      case row :: Nil ⇒ ref.linked.foldLeft(Renderer(ref) row(id, row))((acc, linked) ⇒ combine(acc, linked(row, viewLinked)))
+      case idsRows    ⇒ Renderer(ref) rows (idsRows zipMap ref.extractIdFromRow)
+    }
+
+    object viewLinked extends LinkedTableF1[P, PageFormat]{
+      override def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]) = {
+        crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
+          case Nil              ⇒ Renderer(ref) missingRow Some((ref.filterColumn, ref.colValue))
+          case (id, row) :: Nil ⇒ Renderer(ref) row (id, row)
+          case idsRows          ⇒ Renderer(ref) rows idsRows
+        }
+      }
     }
   }
 }
