@@ -1,6 +1,6 @@
 package no.penger
 
-package object crud extends errors with results {
+package object crud{
 
   trait CrudAbstract extends editors with cellRowInstances
 

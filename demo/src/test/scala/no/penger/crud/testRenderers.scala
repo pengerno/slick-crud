@@ -25,18 +25,20 @@ trait testRenderers extends renderers {
     new Renderer[ID, P] {
       def renderRow(row: P): Seq[ElemFormat] =
         ref.cells.cellsWithUnpackedValues(row).map {
-          case ((name, c), value) ⇒ cell(name, value, c)
+          case ((name, c), value) ⇒ cell(name, value, c, canBePrimary = true)
         }.toIndexedSeq
 
-      override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]) =
+      override def cell(columnName: ColumnName, value: Any, cell: Cell[Any], canBePrimary: Boolean) =
         cell.toStr(value)
 
-      override def rows(rows: Seq[(ID, P)]): PageFormat =
+      override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]): PageFormat =
         Seq(TestView(ref.base.tableName, ref.cells.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
-      override def row(id: ID, row: P): PageFormat =
+      override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]): PageFormat =
         Seq(TestView(ref.base.tableName, ref.cells.cells, Left((Some(Cell.toStr(id)), Some(renderRow(row))))))
 
-      override def missingRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
-  }
+      override def createRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
+
+      override def noRow[T](knownColumn: Option[(ColumnName, T)]) = Seq.empty
+    }
 }

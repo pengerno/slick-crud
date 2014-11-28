@@ -1,6 +1,6 @@
 package no.penger.crud
 
-trait results {
+trait results extends errors {
   sealed trait CrudSuccess
   sealed trait CrudFailure
 

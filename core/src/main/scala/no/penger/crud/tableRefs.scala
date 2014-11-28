@@ -135,7 +135,7 @@ trait tableRefs extends namedCellRows with slickIntegration {
 
     override val base               = wrapped.base
     override val cells              = wrapped.cells
-    override val linked             = link +: wrapped.linked
+    override val linked             = wrapped.linked :+ link
     override val query              = wrapped.query
     override def queryById(id: ID)  = wrapped.queryById(id)
   }
