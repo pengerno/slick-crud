@@ -7,7 +7,7 @@ trait renderers extends tableRefs with renderFormat {
   def Renderer[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]): Renderer[ID, P]
 
   abstract class Renderer[ID: Cell, P] {
-    def cell(columnName: ColumnName, value: Any, cell: Cell[Any], canBePrimary: Boolean): ElemFormat
+    def cell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat
     def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]): PageFormat
     def row[T](id: ID, row: P, via: Option[(ColumnName, T)]): PageFormat
     def createRow[T](via: Option[(ColumnName, T)]): PageFormat

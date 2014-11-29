@@ -38,20 +38,26 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
       case idsRows ⇒ Renderer(ref) rows (idsRows, None)
     }
 
-    override def viewRow(id: ID) = crudAction.read(ref.queryById(id)) match {
-      case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow Some((ref.base.primaryKey, id))
-      case Nil                        ⇒ Renderer(ref) noRow Some((ref.base.primaryKey, id))
-      case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(id, row, Some((ref.base.primaryKey, id))))((acc, linked) ⇒ combine(acc, linked(row, viewLinked)))
-      case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.extractIdFromRow, Some((ref.base.primaryKey, id)))
+    override def viewRow(id: ID) = {
+      val rowRef = Some((ref.base.primaryKey, id))
+      crudAction.read(ref.queryById(id)) match {
+        case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
+        case Nil                        ⇒ Renderer(ref) noRow rowRef
+        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(id, row, rowRef))(
+          (acc, linked) ⇒ combine(acc, linked(row, viewLinked))
+        )
+        case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.extractIdFromRow, rowRef)
+      }
     }
 
     object viewLinked extends LinkedTableF1[P, PageFormat]{
       override def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]) = {
+        val rowRef = Some((ref.filterColumn, ref.colValue))
         crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
-          case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow Some((ref.filterColumn, ref.colValue))
-          case Nil                        ⇒ Renderer(ref) noRow Some((ref.filterColumn, ref.colValue))
-          case (id, row) :: Nil           ⇒ Renderer(ref) row (id, row, Some((ref.filterColumn, ref.colValue)))
-          case idsRows                    ⇒ Renderer(ref) rows (idsRows, Some((ref.filterColumn, ref.colValue)))
+          case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
+          case Nil                        ⇒ Renderer(ref) noRow rowRef
+          case (id, row) :: Nil           ⇒ Renderer(ref) row (id, row, rowRef)
+          case idsRows                    ⇒ Renderer(ref) rows (idsRows, rowRef)
         }
       }
     }

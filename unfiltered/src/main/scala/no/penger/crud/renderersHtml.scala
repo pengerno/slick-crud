@@ -31,10 +31,12 @@ trait renderersHtml extends renderers with renderFormatHtml {
     def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
-    override def cell(columnName: ColumnName, value: Any, cell: Cell[Any], canBePrimary: Boolean): ElemFormat =
+    override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat =
       <td>{
-        if (ref.base.primaryKey =:= columnName && canBePrimary)
-          <a href={base + "/" + cell.toStr(value)} class="btn-style">{ref.base.tableName + " ("}<strong>{cell.toStr(value)}</strong>{")"}</a>
+        if (ref.base.primaryKey =:= columnName)
+          <a href={base + "/" + cell.toStr(value)} class="btn-style">{
+            ref.base.tableName + " ("}<strong>{cell.toStr(value)}</strong>{")"}
+          </a>
         else if (cell.inputType == "checkbox")
             <input type="checkbox"/>
               .attachAttrIf("checked", None)(value == true || value == Some(true))
@@ -55,20 +57,22 @@ trait renderersHtml extends renderers with renderFormatHtml {
       case _           ⇒ <td><input type={cell.inputType} placeholder={cell.typeName}/></td>
     }
 
-    override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]) = withId{
+    override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         <div>
           <table id={uniqueId}>
-            {header(via, introWord = None, uniqueIdShowSave = None, showNew = true)}
+            {header(via, introWord = None, uidShowSave = None, showDelete = None, showNew = true)}
             <thead>
-              <tr>{ref.cells.colNames.map(name ⇒ <th class="columnHeader">{name}</th>)} </tr>
+              <tr>{ref.cells.colNames.map(name ⇒
+                <th class="columnHeader">{name}</th>)}
+              </tr>
             </thead>
             <tbody>{
               rows.zipWithIndex.map {
                 case ((id, row), idx) ⇒
                   <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
                     ref.cells.cellsWithUnpackedValues(row).map {
-                      case ((colName, c), value) ⇒ cell(colName, value, c, via.isEmpty)
+                      case ((colName, c), value) ⇒ cell(colName, value, c)
                     }}
                   </tr>
               }
@@ -81,10 +85,10 @@ trait renderersHtml extends renderers with renderFormatHtml {
     override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         <table id={uniqueId} db-id={Cell.toStr(id)}>
-          {header(via, introWord = None, uniqueIdShowSave = None, showNew = true)}
+          {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.cells.cellsWithUnpackedValues(row).map{
-            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, via.isEmpty)} </tr>
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c)} </tr>
           }}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
@@ -93,7 +97,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
     override def createRow[T](via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         <table id={uniqueId}>
-          {header(via, introWord = Some("New"), uniqueIdShowSave = Some(uniqueId), showNew = false)}
+          {header(via, introWord = Some("New"), uidShowSave = Some(uniqueId), showDelete = None, showNew = false)}
           <tbody> {
             ref.cells.cells.map{ t => (t, via) match {
               case ((name, cell), Some((colName, value))) if name =:= colName =>
@@ -108,9 +112,13 @@ trait renderersHtml extends renderers with renderFormatHtml {
     }
 
     override def noRow[T](via: Option[(ColumnName, T)]) =
-      header(via, introWord = Some("No"), uniqueIdShowSave = None, showNew = true)
+      header(via, introWord = Some("No"), uidShowSave = None, showDelete = None, showNew = true)
 
-    def header[T](via: Option[(ColumnName, T)], introWord: Option[String], uniqueIdShowSave: Option[String], showNew: Boolean) =
+    def header[T](via:           Option[(ColumnName, T)],
+                  introWord:     Option[String],
+                  uidShowSave:   Option[String],
+                  showDelete:    Option[ID],
+                  showNew:       Boolean) =
       <caption class="columnHeader">
         <strong>{
           (via, introWord) match {
@@ -120,8 +128,13 @@ trait renderersHtml extends renderers with renderFormatHtml {
             case (None,                   None)    =>        ref.base.tableName
           }}</strong>
         {if (ref.base.isEditable && showNew) <a class="btn-style" href={base + "/new"}>New</a> else NodeSeq.Empty}
-        {uniqueIdShowSave match {
+        {uidShowSave match {
            case Some(uid) if ref.base.isEditable => <a id={uid + "submit"} class="btn-style" href="#">Save</a>
+           case _ => NodeSeq.Empty
+        }}
+        {showDelete match {
+           case Some(id) if ref.base.isEditable =>
+             <a class="btn-style" href={base + "/delete/" + implicitly[Cell[ID]].toStr(id)}>Delete</a>
            case _ => NodeSeq.Empty
         }}
         <a class="btn-style" href={base}>See all</a>

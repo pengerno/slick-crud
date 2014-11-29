@@ -102,8 +102,8 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
-    val storesRef    = TableRef("/stores",    Stores, isEditable = false)(_.id)
-    val employeeRef  = TableRef("/employees", Employees, isEditable = false)(_.id).projected(_.sortBy(_.name.asc)).linkedOn(_.worksAt, storesRef)(_.id)
+    val storesRef    = TableRef("/stores",    Stores, isEditable = true)(_.id)
+    val employeeRef  = TableRef("/employees", Employees, isEditable = true)(_.id).projected(_.sortBy(_.name.asc)).linkedOn(_.worksAt, storesRef)(_.id)
     val productsRef  = TableRef("/products",  Products)(_.id).projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name))).linkedOn(_._2, storesRef)(_.id)
     val storesRefRef = storesRef.linkedOn(_.id, employeeRef)(_.worksAt).linkedOn(_.id, productsRef)(_._2)
 
