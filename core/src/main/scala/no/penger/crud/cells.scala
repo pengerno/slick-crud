@@ -1,7 +1,7 @@
 package no.penger.crud
 
-import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.slick.lifted.{Column, Query}
 import scala.util.{Failure, Success, Try}
 
 trait cells extends errors {
@@ -41,8 +41,29 @@ trait cells extends errors {
       }
   }
 
-  /* handling of optional values*/
-  implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = new Cell[Option[A]] {
+  case class PKCell[A](wrapped: Cell[A]) extends Cell[A] {
+    override val isEditable             = wrapped.isEditable
+    override val alignRight             = wrapped.alignRight
+    override val inputType              = wrapped.inputType
+    override val typeName               = s"PK[${wrapped.typeName}]"
+    override def toStr(e: Id[A])        = wrapped.toStr(e)
+    override def fromStr(value: String) = wrapped.fromStr(value)
+  }
+
+  case class FKCell[A](wrapped: Cell[A])(_possibleValues: ⇒ Seq[A]) extends Cell[A] {
+    override val isEditable             = wrapped.isEditable
+    override val alignRight             = wrapped.alignRight
+    override val inputType              = wrapped.inputType
+    override val typeName               = s"FK[${wrapped.typeName}]"
+    override def toStr(e: Id[A])        = wrapped.toStr(e)
+    override def fromStr(value: String) = wrapped.fromStr(value)
+    def possibleValues                  = _possibleValues
+  }
+  object FKCell{
+    def apply[A](possibleValues: ⇒ Seq[A])(wrapped: Cell[A]): FKCell[A] = new FKCell(wrapped)(possibleValues)
+  }
+
+  case class OptionCell[A](wrapped: Cell[A]) extends Cell[Option[A]] {
     override val isEditable           = wrapped.isEditable
     override val alignRight           = wrapped.alignRight
     override val inputType            = wrapped.inputType

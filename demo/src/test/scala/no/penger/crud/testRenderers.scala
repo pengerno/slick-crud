@@ -11,7 +11,7 @@ trait testRenderers extends renderers {
 
   case class TestView(
     tableName:  TableName,
-    cells:      Seq[NamedUntypedCell],
+    cells:      Seq[(ColumnName, Cell[Any])],
     content:    Either[(Option[String], Option[Row]), Seq[Row]]){
 
     def id = content.left.map(_._1)

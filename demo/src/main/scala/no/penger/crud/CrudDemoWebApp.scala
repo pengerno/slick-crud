@@ -107,9 +107,9 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
     val productsRef  = TableRef("/products",  Products)(_.id).projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name))).linkedOn(_._2, storesRef)(_.id)
     val storesRefRef = storesRef.linkedOn(_.id, employeeRef)(_.worksAt).linkedOn(_.id, productsRef)(_._2)
 
-    val employees    = Editor(employeeRef, notifier)
-    val products     = Editor(productsRef, notifier)
-    val stores       = Editor(storesRefRef,   notifier)
+    val employees    = Editor(employeeRef,  notifier)
+    val products     = Editor(productsRef,  notifier)
+    val stores       = Editor(storesRefRef, notifier)
 
     override val editors = Seq(employees, products, stores)
 

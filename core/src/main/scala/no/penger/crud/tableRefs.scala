@@ -3,20 +3,16 @@ package no.penger.crud
 trait tableRefs extends namedCellRows with slickIntegration {
   import profile.simple._
   
-  /**
-   * A foreign key read mapping parametrized on the base tables' row projection type
-   */
-  sealed abstract class LinkedTable[P] {
-    /* lookup referred row and apply it to 'f' */
-    def apply[T](foundRow: P, f: LinkedTableF1[P, T]): T
+  sealed trait LinkedTable[ID] {
+    def lookupAndApply[T](id: ID, f: LinkedTableF1[T]): T
   }
 
   /**
    * This is essentially a partially applied foreign key mapping query
-   *  where we package up and hide types and query details. `foundRow` is injected
+   *  where we package up and hide types and query details. `ref` is injected
    *  only when we display the row in question
    */
-  trait LinkedTableF1[P, T]{
+  trait LinkedTableF1[T]{
     def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]): T
   }
 
@@ -34,8 +30,9 @@ trait tableRefs extends namedCellRows with slickIntegration {
               table:       TableQuery[TABLE],
               isEditable:  Boolean = true)
              (idCol:       TABLE ⇒ Column[ID])
-             (implicit cr: CellRow[TABLE#TableElementType]) =
-      BaseTableRef[ID, TABLE](mounted, table, isEditable, NamedCellRow(table), idCol)
+             (implicit cr: CellRow[TABLE#TableElementType]) = {
+      BaseTableRef[ID, TABLE](mounted, table, isEditable, NamedCellRow(table).withPkCell(table.map(idCol)), /* todo: remove:*/ idCol)
+    }
   }
 
   /**
@@ -55,29 +52,26 @@ trait tableRefs extends namedCellRows with slickIntegration {
     def cells:             NamedCellRow[P]
     def query:             Query[LP, P, Seq]
     def queryById(id: ID): Query[LP, P, Seq]
-    def linked:            List[LinkedTable[P]]
+    def linked:            List[LinkedTable[ID]]
 
     def projected[QLP, QP](q: Query[LP, P, Seq] ⇒ Query[QLP, QP, Seq])(implicit cr: CellRow[QP]): TableRef[ID, TABLE, QLP, QP] =
-      ProjectedTableRef[ID, TABLE, LP, P, QLP, QP](this, q, NamedCellRow(q(query)))
+      ProjectedTableRef[ID, TABLE, LP, P, QLP, QP](this, q, NamedCellRow(q(query)).withOverriddenCells(base.cells))
 
     def filtered[COL: BaseColumnType](on: LP ⇒ Column[COL])(value: COL) =
       FilteredTableRef[ID, TABLE, LP, P, COL](this, on, value)
 
     /**
      * Combine this editor with another database table referenced by 'other' on
-     *  where 'columnValue' of a given database row matches 'other's' 'columnQuery'
-     *
-     * Linked tables are exposed when /one/ row of the base table is exposed.
+     *  where 'columnFrom' of a given database row matches 'other's' 'columnQuery'
      */
     def linkedOn[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL: BaseColumnType : Cell]
-                (columnFrom:  P ⇒ COL,
+                (columnFrom:  LP ⇒ Column[COL],
                  other:       TableRef[OID, OTABLE, OLP, OP])
                 (columnQuery: OLP ⇒ Column[COL]): TableRef[ID, TABLE, LP, P] =
 
       ReferencingTableRef[ID, TABLE, LP, P, OID, OTABLE, OLP, OP, COL](this, columnFrom, other, columnQuery)
 
-    private[crud] def extractIdFromRow(row: P) =
-      cells.extractCell(row, base.primaryKey, base.idCell)
+    private[crud] def extractIdFromRow(row: P) = cells.extractCell(row, base.primaryKey, base.idCell)
   }
 
   case class BaseTableRef[ID: BaseColumnType: Cell, P <: AbstractTable[_]]
@@ -122,21 +116,28 @@ trait tableRefs extends namedCellRows with slickIntegration {
     override def queryById(id: ID)  = filter(wrapped.queryById(id))
   }
 
-  case class ReferencingTableRef[ID: Cell, TABLE <: AbstractTable[_], LP, P, OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL: BaseColumnType]
-                                (wrapped:     TableRef[ID, TABLE, LP, P],
-                                 columnFrom:  P ⇒ COL,
-                                 other:       TableRef[OID, OTABLE, OLP, OP],
-                                 columnQuery: OLP ⇒ Column[COL]) extends TableRef[ID, TABLE, LP, P]{
+  case class ReferencingTableRef[ ID: Cell,  TABLE <: AbstractTable[_],  LP,  P,
+                                 OID: Cell, OTABLE <: AbstractTable[_], OLP, OP,
+                                 COL: BaseColumnType: Cell]
+                                (from:     TableRef[ID, TABLE, LP, P],
+                                 fromCol:  LP ⇒ Column[COL],
+                                 to:       TableRef[OID, OTABLE, OLP, OP],
+                                 toCol:    OLP ⇒ Column[COL]) extends TableRef[ID, TABLE, LP, P]{
 
-    val link: LinkedTable[P] = new LinkedTable[P] {
-      override def apply[T](foundRow: P, f: LinkedTableF1[P, T]) =
-        f(other.filtered(on = columnQuery)(value = columnFrom(foundRow)))
+    val link = new LinkedTable[ID]{
+      /* f(select OP from 'to' where fromCol(from) is toCol(to)) */
+      override def lookupAndApply[T](id: ID, f: LinkedTableF1[T]) = {
+        val value       = db.withSession(implicit s ⇒ from.queryById(id).map(fromCol).first)
+        val filteredRef = to.filtered(toCol)(value)
+        f(filteredRef)
+      }
     }
+    val cellLink = FKCell(db.withSession(implicit s ⇒ to.query.map(toCol).list)) _
 
-    override val base               = wrapped.base
-    override val cells              = wrapped.cells
-    override val linked             = wrapped.linked :+ link
-    override val query              = wrapped.query
-    override def queryById(id: ID)  = wrapped.queryById(id)
+    override val base               = from.base
+    override val cells              = from.cells.withFkCell(from.query.map(fromCol), cellLink)
+    override val linked             = from.linked :+ link
+    override val query              = from.query
+    override def queryById(id: ID)  = from.queryById(id)
   }
 }

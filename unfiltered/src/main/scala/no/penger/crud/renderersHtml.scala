@@ -31,26 +31,53 @@ trait renderersHtml extends renderers with renderFormatHtml {
     def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
-    override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat =
-      <td>{
-        if (ref.base.primaryKey =:= columnName)
-          <a href={base + "/" + cell.toStr(value)} class="btn-style">{
-            ref.base.tableName + " ("}<strong>{cell.toStr(value)}</strong>{")"}
+    def innerCell(columnName: ColumnName, value: Any, anyCell: Cell[Any]): ElemFormat =
+      anyCell match {
+        case PKCell(wrapped) =>
+          <a href={base + "/" + anyCell.toStr(value)} class="btn-style">
+            {ref.base.tableName + " ("}<strong>
+            {anyCell.toStr(value)}
+          </strong>{")"}
           </a>
-        else if (cell.inputType == "checkbox")
+
+        case fk: FKCell[Any] =>
+          /* todo: ugh, refactor! */
+          if (fk.wrapped.typeName.contains("FK[") || fk.wrapped.typeName.contains("PK[")){
+            innerCell(columnName, value, fk.wrapped)
+          } else if (fk.typeName.contains("Option["))
+            <select>
+              <option value="">None</option>
+              {fk.possibleValues.map {
+                case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
+                case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
+              }
+            }</select>
+          else
+            <select required="required">{
+              fk.possibleValues.map {
+                case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
+                case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
+              }
+            }</select>
+
+        case _ if anyCell.inputType == "checkbox" =>
             <input type="checkbox"/>
-              .attachAttrIf("checked", None)(value == true || value == Some(true))
-              .attachAttrIfNot("disabled", None)(ref.base.isEditable && cell.isEditable)
-        else
-          <input
-              class={if (cell.alignRight) "right" else "left"}
-              type={cell.inputType}
-              placeholder={cell.typeName}
-              value={cell.toStr(value)}
+            .attachAttrIf("checked", None)(value == true || value == Some(true))
+        case _ =>
+            <input
+              class={if (anyCell.alignRight) "right" else "left"}
+              type={anyCell.inputType}
+              placeholder={anyCell.typeName}
+              value={anyCell.toStr(value)}
               autocomplete="off"
-            />.attachAttrIfNot("disabled", None)(ref.base.isEditable && cell.isEditable)
-          }
-      </td>
+            />
+      }
+
+    override def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any]) = {
+      <td>{innerCell(columnName, value, anyCell)
+        .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable)
+        }</td>
+    }
 
     def renderEmptyCell(cell: Cell[Any], valueOpt: Option[String]) = valueOpt match {
       case Some(value) ⇒ <td><input type={cell.inputType} placeholder={cell.typeName} value={value}/></td>
@@ -88,7 +115,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
           {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.cells.cellsWithUnpackedValues(row).map{
-            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c)} </tr>
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c)}</tr>
           }}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
@@ -112,7 +139,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
     }
 
     override def noRow[T](via: Option[(ColumnName, T)]) =
-      header(via, introWord = Some("No"), uidShowSave = None, showDelete = None, showNew = true)
+      header(via, introWord = Some("No"), uidShowSave = None, showDelete = None, showNew = false)
 
     def header[T](via:           Option[(ColumnName, T)],
                   introWord:     Option[String],

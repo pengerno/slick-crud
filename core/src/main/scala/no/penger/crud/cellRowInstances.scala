@@ -1,11 +1,17 @@
 package no.penger.crud
 
+import scala.language.implicitConversions
+
 trait cellRowInstances extends cells {
+
+  /* handling of optional values*/
+  implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = OptionCell(wrapped)
 
   /**
    * Use this to use tables mapped to a non-tuple structure.
    **/
-  def mappedCellRow[Mapped, Tupled <: Product : CellRow](apply: Tupled ⇒ Mapped, unapply: Mapped ⇒ Option[Tupled]) =
+  def mappedCellRow[Mapped, Tupled <: Product : CellRow]
+                   (apply: Tupled ⇒ Mapped, unapply: Mapped ⇒ Option[Tupled]): CellRow[Mapped] =
     new CellRow[Mapped] {
       val wrapped                           = implicitly[CellRow[Tupled]]
       override def packValues(vs: Seq[Any]) = apply(wrapped.packValues(vs))

@@ -44,13 +44,13 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
         case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
         case Nil                        ⇒ Renderer(ref) noRow rowRef
         case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(id, row, rowRef))(
-          (acc, linked) ⇒ combine(acc, linked(row, viewLinked))
+          (acc, linked) ⇒ combine(acc, linked.lookupAndApply(id, viewLinked))
         )
         case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.extractIdFromRow, rowRef)
       }
     }
 
-    object viewLinked extends LinkedTableF1[P, PageFormat]{
+    object viewLinked extends LinkedTableF1[PageFormat]{
       override def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]) = {
         val rowRef = Some((ref.filterColumn, ref.colValue))
         crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {

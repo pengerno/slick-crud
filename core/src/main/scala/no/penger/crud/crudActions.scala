@@ -23,12 +23,12 @@ trait crudActions extends tableRefs with columnPicker {
      *
      *  @return old value of cell on success, error otherwise
      */
-    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_]](
-        namedCellsQuery: NamedCellRow[_],
-        ref:             BaseTableRef[ID, TABLE],
-        id:              ID,
-        columnName:      ColumnName,
-        value:           String): Either[Error, (String, String)] =
+    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_]]
+              (namedCellsQuery: NamedCellRow[_],
+               ref:             BaseTableRef[ID, TABLE],
+               id:              ID,
+               columnName:      ColumnName,
+               value:           String): Either[Error, (String, String)] =
       for {
         _              ← namedCellsQuery cellByName columnName orError s"projection has no cell with name $columnName"
         cell           ← ref.cells cellByName columnName orError s"table has no cell with name $columnName"
@@ -41,9 +41,9 @@ trait crudActions extends tableRefs with columnPicker {
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt.toString, validValue.toString)
 
-    def create[ID, TABLE <: AbstractTable[_]](
-      ref:        BaseTableRef[ID, TABLE],
-      params:     Map[ColumnName, String]): Either[Seq[Error], ID] = {
+    def create[ID, TABLE <: AbstractTable[_]]
+              (ref: BaseTableRef[ID, TABLE],
+               params:     Map[ColumnName, String]): Either[Seq[Error], ID] = {
 
       def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], ID] =
       /* first try and insert and see if we can get an id back */
@@ -61,7 +61,8 @@ trait crudActions extends tableRefs with columnPicker {
       } yield id
     }
 
-    def delete[ID, TABLE <: AbstractTable[_]](ref: BaseTableRef[ID, TABLE], id: ID): Either[Error, Unit] =
+    def delete[ID, TABLE <: AbstractTable[_]]
+              (ref: BaseTableRef[ID, TABLE], id: ID): Either[Error, Unit] =
       db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(ref.queryById(id).delete)))
 
     private def ensureOneRowChanged(tn: Try[Int])(implicit s: Session) = tn match {
