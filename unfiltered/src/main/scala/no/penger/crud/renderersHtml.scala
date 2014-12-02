@@ -31,7 +31,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
     def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
-    def innerCell(columnName: ColumnName, value: Any, anyCell: Cell[Any]): ElemFormat =
+    def innerCell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: FkCache): ElemFormat =
       anyCell match {
         case PKCell(wrapped) =>
           <a href={base + "/" + anyCell.toStr(value)} class="btn-style">
@@ -43,38 +43,38 @@ trait renderersHtml extends renderers with renderFormatHtml {
         case fk: FKCell[Any] =>
           /* todo: ugh, refactor! */
           if (fk.wrapped.typeName.contains("FK[") || fk.wrapped.typeName.contains("PK[")){
-            innerCell(columnName, value, fk.wrapped)
+            innerCell(columnName, value, fk.wrapped, cache)
           } else if (fk.typeName.contains("Option["))
             <select>
               <option value="">None</option>
-              {fk.possibleValues.map {
+              {fk.possibleValues(cache).map {
                 case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
                 case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
               }
             }</select>
           else
             <select required="required">{
-              fk.possibleValues.map {
+              fk.possibleValues(cache).map {
                 case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
                 case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
               }
             }</select>
 
         case _ if anyCell.inputType == "checkbox" =>
-            <input type="checkbox"/>
-            .attachAttrIf("checked", None)(value == true || value == Some(true))
+          <input type="checkbox"/>
+          .attachAttrIf("checked", None)(value == true || value == Some(true))
         case _ =>
-            <input
-              class={if (anyCell.alignRight) "right" else "left"}
-              type={anyCell.inputType}
-              placeholder={anyCell.typeName}
-              value={anyCell.toStr(value)}
-              autocomplete="off"
-            />
+          <input
+            class={if (anyCell.alignRight) "right" else "left"}
+            type={anyCell.inputType}
+            placeholder={anyCell.typeName}
+            value={anyCell.toStr(value)}
+            autocomplete="off"
+          />
       }
 
-    override def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any]) = {
-      <td>{innerCell(columnName, value, anyCell)
+    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: FkCache) = {
+      <td>{innerCell(columnName, value, anyCell, cache)
         .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable)
         }</td>
     }
@@ -86,6 +86,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
 
     override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
+        val cache = new FkCache
         <div>
           <table id={uniqueId}>
             {header(via, introWord = None, uidShowSave = None, showDelete = None, showNew = true)}
@@ -99,7 +100,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
                 case ((id, row), idx) ⇒
                   <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
                     ref.cells.cellsWithUnpackedValues(row).map {
-                      case ((colName, c), value) ⇒ cell(colName, value, c)
+                      case ((colName, c), value) ⇒ cell(colName, value, c, cache)
                     }}
                   </tr>
               }
@@ -111,11 +112,12 @@ trait renderersHtml extends renderers with renderFormatHtml {
 
     override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
+        val cache = new FkCache
         <table id={uniqueId} db-id={Cell.toStr(id)}>
           {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.cells.cellsWithUnpackedValues(row).map{
-            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c)}</tr>
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, cache)}</tr>
           }}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>

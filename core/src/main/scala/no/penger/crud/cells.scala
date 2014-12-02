@@ -50,17 +50,22 @@ trait cells extends errors {
     override def fromStr(value: String) = wrapped.fromStr(value)
   }
 
-  case class FKCell[A](wrapped: Cell[A])(_possibleValues: ⇒ Seq[A]) extends Cell[A] {
+  class FkCache{
+    val sqlCache = collection.mutable.Map.empty[String, Seq[Any]]
+  }
+
+  case class FKCell[A](wrapped: Cell[A], selectStatement: String)(_possibleValues: ⇒ Seq[A]) extends Cell[A] {
     override val isEditable             = wrapped.isEditable
     override val alignRight             = wrapped.alignRight
     override val inputType              = wrapped.inputType
     override val typeName               = s"FK[${wrapped.typeName}]"
     override def toStr(e: Id[A])        = wrapped.toStr(e)
     override def fromStr(value: String) = wrapped.fromStr(value)
-    def possibleValues                  = _possibleValues
+    def possibleValues(c: FkCache): Seq[A] = c.sqlCache.getOrElseUpdate(selectStatement, _possibleValues).asInstanceOf[Seq[A]]
   }
   object FKCell{
-    def apply[A](possibleValues: ⇒ Seq[A])(wrapped: Cell[A]): FKCell[A] = new FKCell(wrapped)(possibleValues)
+    def apply[A](selectStatement: String, possibleValues: ⇒ Seq[A])(wrapped: Cell[A]): FKCell[A] =
+      new FKCell(wrapped, selectStatement)(possibleValues)
   }
 
   case class OptionCell[A](wrapped: Cell[A]) extends Cell[Option[A]] {

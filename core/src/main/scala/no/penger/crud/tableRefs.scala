@@ -132,7 +132,7 @@ trait tableRefs extends namedCellRows with slickIntegration {
         f(filteredRef)
       }
     }
-    val cellLink = FKCell(db.withSession(implicit s ⇒ to.query.map(toCol).list)) _
+    val cellLink = FKCell(to.query.map(toCol).selectStatement, db.withSession(implicit s ⇒ to.query.map(toCol).list)) _
 
     override val base               = from.base
     override val cells              = from.cells.withFkCell(from.query.map(fromCol), cellLink)

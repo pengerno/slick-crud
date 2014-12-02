@@ -25,11 +25,8 @@ trait testRenderers extends renderers {
     new Renderer[ID, P] {
       def renderRow(row: P): Seq[ElemFormat] =
         ref.cells.cellsWithUnpackedValues(row).map {
-          case ((name, c), value) ⇒ cell(name, value, c)
+          case ((name, c), value) ⇒ c.toStr(value))
         }.toIndexedSeq
-
-      override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]) =
-        cell.toStr(value)
 
       override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]): PageFormat =
         Seq(TestView(ref.base.tableName, ref.cells.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
