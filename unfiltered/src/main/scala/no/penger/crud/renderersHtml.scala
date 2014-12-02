@@ -40,23 +40,23 @@ trait renderersHtml extends renderers with renderFormatHtml {
           </strong>{")"}
           </a>
 
-        case fk: FKCell[Any] =>
+        case fk@FKCell(wrapped, _) =>
           /* todo: ugh, refactor! */
-          if (fk.wrapped.typeName.contains("FK[") || fk.wrapped.typeName.contains("PK[")){
-            innerCell(columnName, value, fk.wrapped, cache)
+          if (wrapped.typeName.contains("FK[")){
+            innerCell(columnName, value, wrapped, cache)
           } else if (fk.typeName.contains("Option["))
             <select>
-              <option value="">None</option>
+              <option value="">{wrapped.typeName}</option>
               {fk.possibleValues(cache).map {
-                case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
-                case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
+                case `value` => <option selected="selected" value={wrapped.toStr(value)}>{wrapped.toStr(value)}</option>
+                case alt     => <option                     value={wrapped.toStr(alt)}>{wrapped.toStr(alt)}</option>
               }
             }</select>
           else
             <select required="required">{
               fk.possibleValues(cache).map {
-                case `value` => <option selected="selected" value={fk.wrapped.toStr(value)}>{fk.wrapped.toStr(value)}</option>
-                case alt     => <option                     value={fk.wrapped.toStr(alt)}>{fk.wrapped.toStr(alt)}</option>
+                case `value` => <option selected="selected" value={wrapped.toStr(value)}>{wrapped.toStr(value)}</option>
+                case alt     => <option                     value={wrapped.toStr(alt)}>{wrapped.toStr(alt)}</option>
               }
             }</select>
 
@@ -91,7 +91,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
           <table id={uniqueId}>
             {header(via, introWord = None, uidShowSave = None, showDelete = None, showNew = true)}
             <thead>
-              <tr>{ref.cells.colNames.map(name ⇒
+              <tr>{ref.metadata.colNames.map(name ⇒
                 <th class="columnHeader">{name}</th>)}
               </tr>
             </thead>
@@ -99,7 +99,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
               rows.zipWithIndex.map {
                 case ((id, row), idx) ⇒
                   <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
-                    ref.cells.cellsWithUnpackedValues(row).map {
+                    ref.metadata.cellsWithUnpackedValues(row).map {
                       case ((colName, c), value) ⇒ cell(colName, value, c, cache)
                     }}
                   </tr>
@@ -116,7 +116,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
         <table id={uniqueId} db-id={Cell.toStr(id)}>
           {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
-          {ref.cells.cellsWithUnpackedValues(row).map{
+          {ref.metadata.cellsWithUnpackedValues(row).map{
             case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, cache)}</tr>
           }}
         </table>
@@ -128,7 +128,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
         <table id={uniqueId}>
           {header(via, introWord = Some("New"), uidShowSave = Some(uniqueId), showDelete = None, showNew = false)}
           <tbody> {
-            ref.cells.cells.map{ t => (t, via) match {
+            ref.metadata.cells.map{ t => (t, via) match {
               case ((name, cell), Some((colName, value))) if name =:= colName =>
                 <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell, Some(cell.toStr(value)))}</tr>
               case ((name, cell), _) ⇒

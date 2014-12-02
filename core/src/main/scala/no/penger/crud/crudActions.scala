@@ -23,17 +23,16 @@ trait crudActions extends tableRefs with columnPicker {
      *
      *  @return old value of cell on success, error otherwise
      */
-    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_]]
-              (namedCellsQuery: NamedCellRow[_],
-               ref:             BaseTableRef[ID, TABLE],
-               id:              ID,
-               columnName:      ColumnName,
-               value:           String): Either[Error, (String, String)] =
+    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
+              (ref:        TableRef[ID, TABLE, LP, P],
+               id:         ID,
+               columnName: ColumnName,
+               value:      String): Either[Error, (String, String)] =
       for {
-        _              ← namedCellsQuery cellByName columnName orError s"projection has no cell with name $columnName"
-        cell           ← ref.cells cellByName columnName orError s"table has no cell with name $columnName"
+        _              ← ref.metadata cellByName columnName orError s"projection has no cell with name $columnName"
+        cell           ← ref.base.metadata cellByName columnName orError s"table has no cell with name $columnName"
         validValue     ← cell fromStr value
-        row            = ref.queryById(id)
+        row            = ref.base.queryById(id)
         updater        = row map (slickTable =>
                             (findColumnWithName(slickTable, columnName) map ensureOptionalColumn(validValue)).get
                           )
@@ -56,7 +55,7 @@ trait crudActions extends tableRefs with columnPicker {
         }.toEither(t ⇒ Seq(errorExc(t)))
 
       for {
-        toInsert ← ref.cells.parseRow(params)
+        toInsert ← ref.metadata.parseRow(params)
         id       ← doInsert(toInsert)
       } yield id
     }

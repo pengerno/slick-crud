@@ -20,7 +20,7 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
       )
 
     override def update(id: ID, columnName: ColumnName, value: String) =
-      crudAction.update(ref.cells, ref.base, id, columnName, value) biMap (
+      crudAction.update(ref, id, columnName, value) biMap (
         error       ⇒ UpdateFailed(tableName, id, columnName, value, error)         andThen n.notifyUpdateFailure,
         oldNew      ⇒ Updated(     tableName, id, columnName, oldNew._2, oldNew._1) andThen n.notifyUpdated
       )
