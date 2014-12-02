@@ -2,7 +2,7 @@
 package no.penger
 package crud
 
-trait editors extends editorAbstracts with crudActions with renderers with updateNotifier {
+trait editors extends editorAbstracts with crudActions with renderers with updateNotifier with tableLinks {
   import profile.simple._
 
   case class Editor[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
