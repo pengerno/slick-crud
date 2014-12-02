@@ -138,7 +138,7 @@ no.penger.crud.view = function(path, root){
             var self   = this;
             var elem   = $(this);
             var column = elem.closest('table').find('th:eq('+this.parentElement.cellIndex+')').text();
-            var id     = elem.closest('tr').find('td:first').text();
+            var id     = $(elem.closest('tr')).attr('db-id');
 
             var checked  = this.checked;
             var data     = {};
