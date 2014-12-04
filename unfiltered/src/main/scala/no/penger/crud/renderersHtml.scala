@@ -31,49 +31,39 @@ trait renderersHtml extends renderers with renderFormatHtml {
     def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
-    def innerCell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: FkCache): ElemFormat =
-      anyCell match {
+    def innerCell(columnName: ColumnName, value: Any, c: Cell[Any], cache: CacheLookup): ElemFormat =
+      c match {
         case PKCell(wrapped) =>
-          <a href={base + "/" + anyCell.toStr(value)} class="btn-style">
+          <a href={base + "/" + c.toStr(value)} class="btn-style">
             {ref.base.tableName + " ("}<strong>
-            {anyCell.toStr(value)}
+            {c.toStr(value)}
           </strong>{")"}
           </a>
+        case SelectCell(_, _) ⇒
+          if (value == true) <input type="checkbox" checked="checked"/>
+          else               <input type="checkbox"/>
 
-        case fk@FKCell(wrapped, _) =>
-          /* todo: ugh, refactor! */
-          if (wrapped.typeName.contains("FK[")){
-            innerCell(columnName, value, wrapped, cache)
-          } else if (fk.typeName.contains("Option["))
-            <select>
-              <option value="">{wrapped.typeName}</option>
-              {fk.possibleValues(cache).map {
-                case `value` => <option selected="selected" value={wrapped.toStr(value)}>{wrapped.toStr(value)}</option>
-                case alt     => <option                     value={wrapped.toStr(alt)}>{wrapped.toStr(alt)}</option>
-              }
-            }</select>
-          else
-            <select required="required">{
-              fk.possibleValues(cache).map {
-                case `value` => <option selected="selected" value={wrapped.toStr(value)}>{wrapped.toStr(value)}</option>
-                case alt     => <option                     value={wrapped.toStr(alt)}>{wrapped.toStr(alt)}</option>
-              }
-            }</select>
-
-        case _ if anyCell.inputType == "checkbox" =>
-          <input type="checkbox"/>
-          .attachAttrIf("checked", None)(value == true || value == Some(true))
         case _ =>
-          <input
-            class={if (anyCell.alignRight) "right" else "left"}
-            type={anyCell.inputType}
-            placeholder={anyCell.typeName}
-            value={anyCell.toStr(value)}
-            autocomplete="off"
-          />
+          c.constrained match {
+            case Some(cf) ⇒
+              <select>{
+                cf(cache).map {
+                  case `value` => <option selected="selected" value={c.toStr(value)}>{c.toStr(value)}</option>
+                  case alt     => <option                     value={c.toStr(alt)}>{c.toStr(alt)}</option>
+                }
+              }</select>
+            case _ ⇒
+              <input
+                class={if (c.alignRight) "right" else "left"}
+                type={c.inputType}
+                placeholder={c.typeName}
+                value={c.toStr(value)}
+                autocomplete="off"
+              />
+          }
       }
 
-    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: FkCache) = {
+    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: CacheLookup) = {
       <td>{innerCell(columnName, value, anyCell, cache)
         .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable)
         }</td>
@@ -86,7 +76,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
 
     override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
-        val cache = new FkCache
+        val cache = new CacheLookup
         <div>
           <table id={uniqueId}>
             {header(via, introWord = None, uidShowSave = None, showDelete = None, showNew = true)}
@@ -112,7 +102,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
 
     override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
-        val cache = new FkCache
+        val cache = new CacheLookup
         <table id={uniqueId} db-id={Cell.toStr(id)}>
           {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>

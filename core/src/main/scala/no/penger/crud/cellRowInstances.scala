@@ -2,10 +2,7 @@ package no.penger.crud
 
 import scala.language.implicitConversions
 
-trait cellRowInstances extends cells {
-
-  /* handling of optional values*/
-  implicit def optionCell[A](implicit wrapped: Cell[A]): Cell[Option[A]] = OptionCell(wrapped)
+trait cellRowInstances extends cellInstances {
 
   /**
    * Use this to use tables mapped to a non-tuple structure.

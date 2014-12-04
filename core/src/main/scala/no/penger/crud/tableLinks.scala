@@ -32,39 +32,14 @@ trait tableLinks extends tableRefs {
         f(filteredRef)
       }
     }
-    private val fkCellWrapper = FKCell(
+    private val fkCellWrapper: (Cell[COL]) ⇒ FKCell[COL] = FKCell(
       to.query.map(toCol).selectStatement,
       db.withSession(implicit s ⇒ to.query.map(toCol).list)
-    ) _
+    )
 
     override val base               = from.base
     override val metadata           = from.metadata.withFkCell(from.query.map(fromCol), fkCellWrapper)
     override val query              = from.query
     override def queryById(id: ID)  = from.queryById(id)
-  }
-
-  implicit class LinkOps[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]){
-    /**
-     * Combine this editor with another database table referenced by 'other' on
-     *  where 'columnFrom' of a given database row matches 'other's' 'columnQuery'
-     */
-    def linkedOn[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL: BaseColumnType : Cell]
-                (columnFrom:  LP ⇒ Column[COL],
-                 other:       TableRef[OID, OTABLE, OLP, OP])
-                (columnQuery: OLP ⇒ Column[COL]): TableRef[ID, TABLE, LP, P] =
-
-      ReferencingTableRef[ID, TABLE, LP, P, OID, OTABLE, OLP, OP, COL](ref, columnFrom, other, columnQuery)
-
-    def linked: List[LinkedTable[ID]] = {
-      def linkedInner(r: TableRef[ID, _, _, _]): List[LinkedTable[ID]] = r match {
-        case BaseTableRef(_, _, _, _)                ⇒ Nil
-        case FilteredTableRef(wrapped, _, _)         ⇒ linkedInner(wrapped)
-        case l@ReferencingTableRef(wrapped, _, _, _) ⇒ linkedInner(wrapped) :+ l.link
-        case ProjectedTableRef(wrapped, _)           ⇒
-          val res = linkedInner(wrapped)
-          if (res.isEmpty) Nil else sys.error("Use linkedOn() after projected()")
-      }
-      linkedInner(ref)
-    }
   }
 }

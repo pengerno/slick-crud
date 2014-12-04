@@ -20,7 +20,20 @@ trait StoreDomain{
   case class Product(id: ProductId, name: Name, quantity: Int, soldBy: StoreId)
 
   case class EmployeeId(id: Long)
-  case class Employee(id: EmployeeId, name: Name, worksAt: StoreId)
+  case class Employee(id: EmployeeId, name: Name, worksAt: StoreId, role: Option[Role], good: Option[Boolean])
+
+  sealed abstract class Role(val name: String)
+
+  object Role{
+    case object Employee extends Role("Employee")
+    case object Manager extends Role("Manager")
+
+    val values = List(Employee, Manager)
+    def get(s: String) = s match {
+      case Employee.name ⇒ Employee
+      case Manager.name  ⇒ Manager
+    }
+  }
 }
 
 trait StoreTables extends StoreDomain with slickIntegration {
@@ -32,6 +45,7 @@ trait StoreTables extends StoreDomain with slickIntegration {
   implicit lazy val m3 = MappedColumnType.base[Name,       String](_.value, Name)
   implicit lazy val m4 = MappedColumnType.base[ProductId,  Long]  (  _.id,  ProductId)
   implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.value, StoreId)
+  implicit lazy val m6 = MappedColumnType.base[Role,       String](_.toString, Role.get)
 
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id        = column[StoreId]("id")
@@ -55,7 +69,9 @@ trait StoreTables extends StoreDomain with slickIntegration {
     val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
     val worksAt   = column[StoreId]   ("works_at")
-    def *         = (id, name, worksAt) <> (Employee.tupled, Employee.unapply)
+    val role      = column[Role]      ("role").?
+    val good      = column[Boolean]   ("good").?
+    def *         = (id, name, worksAt, role, good) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
 }
@@ -70,7 +86,7 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
   implicit val c3 = SimpleCell[StoreId](_.value, StoreId(_).ensuring(_.value.nonEmpty), isEditable = true)
   implicit val c4 = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
   implicit val c5 = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
-
+  implicit val c6 = EnumCell(SimpleCell[Role](_.name, Role.get), Role.values)
   /**
    * These cellRow mapping instances are necessary in order to expose
    *  tables that have default projections to non-tuple structures.
