@@ -30,6 +30,15 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
           editor.viewRow(id)
         )
 
+      /* delete row */
+      case DELETE(ContextPath(_, FuzzySeg(MountedAt:+ Id(id)))) ⇒
+        editor.delete(id) match {
+          case Left(failed) ⇒
+            BadRequest ~> ResponseString(failed.toString)
+          case Right(Deleted(table, _)) ⇒
+            respond(s"deleted id $id from $table")(editor.view)
+        }
+      
       /* update row */
       case POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
         updates.headOption match {
@@ -55,13 +64,6 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
           case Left(errors)                    ⇒ BadRequest ~> ResponseString(errors.ts.mkString("\n"))
           case Right(Created(table, Some(id))) ⇒ respond(s"created new $table")(editor.viewRow(id))
           case Right(Created(table, None))     ⇒ respond(s"created new $table")(editor.view)
-        }
-
-      /* delete row */
-      case ContextPath(_, FuzzySeg(MountedAt :+ "delete" :+ Id(id))) ⇒
-        editor.delete(id) match {
-          case Left(error)              ⇒ BadRequest ~> ResponseString(error.toString)
-          case Right(Deleted(table, _)) ⇒ respond(s"deleted id $id from $table")(editor.view)
         }
     }
   }

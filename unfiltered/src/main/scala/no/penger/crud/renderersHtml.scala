@@ -156,7 +156,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
         }}
         {showDelete match {
            case Some(id) if ref.base.isEditable =>
-             <a class="btn-style" href={base + "/delete/" + ref.metadata.idCell.toStr(id)}>Delete</a>
+             <a class="btn-style delete" href={s"$base/${ref.metadata.idCell.toStr(id)}"}>Delete</a>
            case _ => NodeSeq.Empty
         }}
         <a class="btn-style" href={base}>See all</a>

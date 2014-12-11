@@ -81,6 +81,17 @@ no.penger.crud.single = function(url, root){
                 self.checked = !checked;
             });
         });
+
+        $(root + ' .delete').click(function(){
+            var self    = this;
+            var elem   = $(this);
+            var id     = $(elem.closest('table')).attr('db-id');
+            if(confirm("Are you sure?")) {
+                no.penger.crud.delete(url + "/" + id, function () {
+                    window.location = url;
+                });
+            }
+        })
     }
 
     $(setup)
@@ -187,6 +198,22 @@ no.penger.crud.send = function(url, data, undo){
         data: $.param(data),
         success:function(msg){
             console.debug('success' + msg);
+        },
+        error:function(error){
+            alert(error.responseText);
+            undo();
+        }
+    });
+};
+
+no.penger.crud.delete = function(url, deleted){
+    $.ajax({
+        url: url,
+        type: 'delete',
+        data: "",
+        success:function(msg){
+            console.debug('success' + msg);
+            deleted();
         },
         error:function(error){
             alert(error.responseText);
