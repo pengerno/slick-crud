@@ -63,9 +63,9 @@ trait renderersHtml extends renderers with renderFormatHtml {
           }
       }
 
-    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: CacheLookup) = {
+    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: CacheLookup, rowHasId: Boolean) = {
       <td>{innerCell(columnName, value, anyCell, cache)
-        .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable)
+        .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable && rowHasId)
         }</td>
     }
 
@@ -74,7 +74,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
       case _           ⇒ <td><input type={cell.inputType} placeholder={cell.typeName}/></td>
     }
 
-    override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]) = withId {
+    override def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         val cache = new CacheLookup
         <div>
@@ -87,10 +87,10 @@ trait renderersHtml extends renderers with renderFormatHtml {
             </thead>
             <tbody>{
               rows.zipWithIndex.map {
-                case ((id, row), idx) ⇒
-                  <tr db-id={Cell.toStr(id)} class={if (idx % 2 == 0) "even" else ""}>{
+                case ((idOpt, row), idx) ⇒
+                  <tr db-id={idOpt.fold("missing")(Cell.toStr(_))} class={if (idx % 2 == 0) "even" else ""}>{
                     ref.metadata.cellsWithUnpackedValues(row).map {
-                      case ((colName, c), value) ⇒ cell(colName, value, c, cache)
+                      case ((colName, c), value) ⇒ cell(colName, value, c, cache, idOpt.isDefined)
                     }}
                   </tr>
               }
@@ -100,14 +100,14 @@ trait renderersHtml extends renderers with renderFormatHtml {
         </div>
     }
 
-    override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]) = withId {
+    override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]) = withId {
       uniqueId ⇒
         val cache = new CacheLookup
-        <table id={uniqueId} db-id={Cell.toStr(id)}>
-          {header(via, introWord = None, uidShowSave = None, showDelete = Some(id), showNew = true)}
+        <table id={uniqueId} db-id={idOpt.fold("missing")(Cell.toStr(_))}>
+          {header(via, introWord = None, uidShowSave = None, showDelete = idOpt, showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.metadata.cellsWithUnpackedValues(row).map{
-            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, cache)}</tr>
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, cache, idOpt.isDefined)}</tr>
           }}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>

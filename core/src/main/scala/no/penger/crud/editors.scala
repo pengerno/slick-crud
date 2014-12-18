@@ -33,7 +33,7 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
 
     override val viewNew = Renderer(ref) createRow None
 
-    override def view = crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
+    override def view = crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
       case Nil     ⇒ Renderer(ref).createRow(None)
       case idsRows ⇒ Renderer(ref) rows (idsRows, None)
     }
@@ -43,17 +43,17 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
       crudAction.read(ref.queryById(id)) match {
         case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
         case Nil                        ⇒ Renderer(ref) noRow rowRef
-        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(id, row, rowRef))(
+        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(Some(id), row, rowRef))(
           (acc, linked) ⇒ combine(acc, linked.lookupAndApply(id, viewLinked))
         )
-        case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.extractIdFromRow, rowRef)
+        case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.metadata.extractIdFromRow, rowRef)
       }
     }
 
     object viewLinked extends LinkedTableF1[PageFormat]{
       override def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]) = {
         val rowRef = Some((ref.filterColumn, ref.colValue))
-        crudAction.read(ref.query).zipMap(ref.extractIdFromRow) match {
+        crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
           case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
           case Nil                        ⇒ Renderer(ref) noRow rowRef
           case (id, row) :: Nil           ⇒ Renderer(ref) row (id, row, rowRef)

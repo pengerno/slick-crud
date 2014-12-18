@@ -4,6 +4,7 @@ package crud
 import javax.servlet.ServletContext
 
 import com.typesafe.scalalogging.LazyLogging
+import org.slf4j.LoggerFactory
 import unfiltered.filter.Plan
 import unfiltered.response._
 
@@ -133,5 +134,6 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
       Html5(PageTemplate.page(ctx, title)(body))
   }
 
+  override val log         = LoggerFactory.getLogger(CrudDemoWebApp.getClass)
   override lazy val intent = new CrudUnfilteredDemo(config.getServletContext).intent
 }

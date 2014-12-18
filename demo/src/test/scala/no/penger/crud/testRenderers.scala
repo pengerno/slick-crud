@@ -28,11 +28,11 @@ trait testRenderers extends renderers {
           case ((name, c), value) ⇒ c.toStr(value)
         }.toIndexedSeq
 
-      override def rows[T](rows: Seq[(ID, P)], via: Option[(ColumnName, T)]): PageFormat =
+      override def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]): PageFormat =
         Seq(TestView(ref.base.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
-      override def row[T](id: ID, row: P, via: Option[(ColumnName, T)]): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(Cell.toStr(id)), Some(renderRow(row))))))
+      override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]): PageFormat =
+        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(Cell.toStr(_))), Some(renderRow(row))))))
 
       override def createRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
 

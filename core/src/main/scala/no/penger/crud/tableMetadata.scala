@@ -6,8 +6,9 @@ trait tableMetadata extends cells with astParser {
   object Metadata {
 
     def infer[ID, TABLE, P](q: Query[TABLE, P, Seq], idCol: TABLE ⇒ Column[ID])(implicit cr: CellRow[P], icd: Cell[ID]): Metadata[ID, P] = {
-      val IdName = AstParser.colNames(q.map(idCol)).head
-      val idCell = PKCell(icd)
+      val idQuery = q.map(idCol)
+      val IdName  = AstParser.colNames(idQuery).head
+      val idCell  = PKCell(icd)
 
       /* inject idCell in cell list */
       val cells = cellsWithColumnNames(q) map {
@@ -15,7 +16,7 @@ trait tableMetadata extends cells with astParser {
         case (colName, cell) ⇒ (colName, cell.asInstanceOf[Cell[Any]])
       }
 
-      Metadata(cr.unpackValues, cr.packValues, cells, idCell, IdName)
+      Metadata(cr.unpackValues, cr.packValues, cells, idCell, IdName, idQuery)
     }
 
     def derive[TABLE, P, OID, OP](q: Query[TABLE, P, Seq], origin: Metadata[OID, OP])(implicit cr: CellRow[P]): Metadata[OID, P] = {
@@ -28,7 +29,7 @@ trait tableMetadata extends cells with astParser {
           }
       }
 
-      Metadata(cr.unpackValues, cr.packValues, cells, origin.idCell, origin.idColName)
+      Metadata(cr.unpackValues, cr.packValues, cells, origin.idCell, origin.idColName, origin.idQuery)
     }
 
     private def cellsWithColumnNames[TABLE, P](q: Query[TABLE, P, Seq])(implicit cr: CellRow[P]): Seq[(ColumnName, Cell[_])] =
@@ -39,7 +40,8 @@ trait tableMetadata extends cells with astParser {
                             packValues:   Seq[Any] ⇒ P,
                             cells:        Seq[(ColumnName, Cell[Any])],
                             idCell:       Cell[ID],
-                            idColName:    ColumnName){
+                            idColName:    ColumnName,
+                            idQuery:      Query[Column[ID], ID, Seq]){
 
     def cellByName(Name: ColumnName): Option[Cell[Any]] =
       cells collectFirst { case (Name, c) => c }
@@ -49,7 +51,12 @@ trait tableMetadata extends cells with astParser {
 
     def colNames = cells map (_._1)
 
-    def extractIdFromRow(row: P): ID = unpackValues(row)(colNames.indexOf(idColName)).asInstanceOf[ID]
+    def extractIdFromRow(row: P): Option[ID] = {
+      colNames.indexOf(idColName) match {
+        case -1  ⇒ None
+        case idx ⇒ Some(unpackValues(row)(idx).asInstanceOf[ID])
+      }
+    }
 
     def parseRow(params: Map[ColumnName, String]): Either[Seq[Error], P] =
       sequence {

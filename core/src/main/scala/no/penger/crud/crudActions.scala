@@ -40,17 +40,17 @@ trait crudActions extends tableRefs with columnPicker {
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt.toString, validValue.toString)
 
-    def create[ID, TABLE <: AbstractTable[_]]
+    def create[ID: BaseColumnType, TABLE <: AbstractTable[_]]
               (ref: BaseTableRef[ID, TABLE],
-               params:     Map[ColumnName, String]): Either[Seq[Error], ID] = {
+               params:     Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
 
-      def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], ID] =
+      def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], Option[ID]] =
       /* first try and insert and see if we can get an id back */
-        Try[ID](db withTransaction (implicit s ⇒ ref.query returning ref.query.map(ref.idCol) insert toInsert)).orElse {
+        Try[Option[ID]](Some(db withTransaction (implicit s ⇒ ref.query returning ref.query.map(ref.idCol) insert toInsert))).orElse {
           /* try again without return of autoincrement value */
           Try(db withTransaction (implicit s ⇒ ref.query.insert(toInsert))).map{
             /* since there was no auto-generated id, dig out the id from what we inserted */
-            _ ⇒ ref.extractIdFromRow(toInsert)
+            _ ⇒ ref.metadata.extractIdFromRow(toInsert)
           }
         }.toEither(t ⇒ Seq(errorExc(t)))
 

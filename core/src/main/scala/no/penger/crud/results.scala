@@ -4,7 +4,7 @@ trait results extends errors {
   sealed trait CrudSuccess
   sealed trait CrudFailure
 
-  case class Created[ID](table: TableName, id: ID) extends CrudSuccess
+  case class Created[ID](table: TableName, id: Option[ID]) extends CrudSuccess
   case class Updated[ID](table: TableName, id: ID, column: ColumnName, newValue: String, oldValue: String) extends CrudSuccess
   case class Deleted[ID](table: TableName, id: ID) extends CrudSuccess
 

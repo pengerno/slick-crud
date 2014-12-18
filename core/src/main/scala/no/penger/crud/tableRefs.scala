@@ -45,8 +45,6 @@ trait tableRefs extends tableMetadata with slickIntegration {
 
     def filtered[COL: BaseColumnType](on: LP ⇒ Column[COL])(value: COL) =
       FilteredTableRef[ID, TABLE, LP, P, COL](this, on, value)
-
-    private[crud] def extractIdFromRow(row: P) = metadata.extractIdFromRow(row)
   }
 
   case class BaseTableRef[ID: BaseColumnType: Cell, P <: AbstractTable[_]]

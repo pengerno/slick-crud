@@ -1,9 +1,10 @@
-package no.penger.crud
+package no.penger
+package crud
 
 import com.typesafe.scalalogging.LazyLogging
-import no.penger.db.LiquibaseH2TransactionComponent
 import org.scalatest.FunSuite
 import org.scalactic.TypeCheckedTripleEquals
+import org.slf4j.LoggerFactory
 
 /**
 * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -11,9 +12,11 @@ import org.scalactic.TypeCheckedTripleEquals
 */
 class CrudTest
   extends FunSuite with TypeCheckedTripleEquals
-  with CrudAbstract with testRenderers                  /* crud with concretization */
-  with StoreTables with StoreCrudInstances              /* test tables */
-  with LiquibaseH2TransactionComponent with LazyLogging /* h2 with tables */ {
+  with CrudAbstract with testRenderers                     /* crud with concretization */
+  with StoreTables with StoreCrudInstances                 /* test tables */
+  with db.LiquibaseH2TransactionComponent with LazyLogging /* h2 with tables */ {
+
+  override val log = LoggerFactory.getLogger(classOf[CrudTest])
 
   import profile.simple._
 
@@ -102,6 +105,11 @@ class CrudTest
 
     val expected  = Left((Some(pid1.id.toString), Some(Seq(q1.toString, n1.value))))
     assert(e.viewRow(pid1).head.content === expected)
+  }
+
+  test("work for projection that doesnt include id row"){
+    val e = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(p ⇒ (p.quantity, p.name))))
+    assert(e.view.size > 0)
   }
 
   test("update (class ⇒ tuple) editor"){
@@ -229,8 +237,9 @@ class CrudTest
     )
     /* test that view returns correctly after successful create*/
     ret match {
-      case Left(CreateFailed(_, fs)) ⇒ fail(fs.head)
-      case Right(Created(_, pid)) ⇒
+      case Left(CreateFailed(_, fs))    ⇒ fail(fs.head)
+      case Right(Created(_, None))      ⇒ fail("no id found")
+      case Right(Created(_, Some(pid))) ⇒
         val view = e.viewRow(pid)
         containAssert(shouldContain = true, view, quantity.toString)
     }
@@ -259,7 +268,7 @@ class CrudTest
         ColumnName("closed")      → true.toString
       )
     )
-    assert(Right(Created(e.tableName, sid)) === ret)
+    assert(Right(Created(e.tableName, Some(sid))) === ret)
   }
 
   test("delete"){
