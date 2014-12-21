@@ -35,7 +35,7 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val transactionsVersion = "2"
+  val transactionsVersion = "4"
   val unfilteredVersion   = "0.8.3"
 
   lazy val crud           = project("core")(

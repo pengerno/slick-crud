@@ -55,6 +55,20 @@ no.penger.crud.single = function(url, root){
              });
         });
 
+        $(root + ' ' + 'select').each(function(i, e){
+            no.penger.crud.makeEditable(e, function(text, old){
+                 var elem   = $(this);
+                 var id     = $(elem.closest('table')).attr('db-id');
+                 var key    = elem.closest('tr').find('td:first').text();
+
+                 var data  = {};
+                 data[key] = text;
+                 no.penger.crud.send(url + "/" + id, data, function(){
+                     elem.text(old);
+                 });
+             });
+        });
+
         $(root + ' input[type=checkbox]').click(function(){
             var self    = this;
             var elem   = $(this);
@@ -132,13 +146,26 @@ no.penger.crud.view = function(path, root){
             no.penger.crud.send(path + "/" + id, data, function(){
                 elem.text(old);
             });
+        })
+
+        no.penger.crud.makeEditable($(root + ' select'), function(text, old){
+            var elem   = $(this);
+            var column = elem.closest('table').find('th:eq('+this.parentElement.cellIndex+')').text();
+            var id     = $(elem.closest('tr')).attr('db-id');
+
+            var data     = {};
+            data[column] = text;
+
+            no.penger.crud.send(path + "/" + id, data, function(){
+                elem.text(old);
+            });
         });
 
         $(root +' input[type=checkbox]').click(function(){
             var self   = this;
             var elem   = $(this);
             var column = elem.closest('table').find('th:eq('+this.parentElement.cellIndex+')').text();
-            var id     = elem.closest('tr').find('td:first').text();
+            var id     = $(elem.closest('tr')).attr('db-id');
 
             var checked  = this.checked;
             var data     = {};

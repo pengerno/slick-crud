@@ -1,6 +1,6 @@
 package no.penger.crud
 
-trait editorAbstracts extends renderFormat with cells {
+trait editorAbstracts extends renderFormat with cells with results {
   /* this trait mostly exists to shed a few type parameters and hide implementation details */
   abstract class EditorAbstract[ID]{
     val mountedAt: String

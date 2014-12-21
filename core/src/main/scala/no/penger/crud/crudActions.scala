@@ -23,17 +23,16 @@ trait crudActions extends tableRefs with columnPicker {
      *
      *  @return old value of cell on success, error otherwise
      */
-    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_]](
-        namedCellsQuery: NamedCellRow[_],
-        ref:             BaseTableRef[ID, TABLE],
-        id:              ID,
-        columnName:      ColumnName,
-        value:           String): Either[Error, (String, String)] =
+    def update[ID, TABLE <: AbstractTable[_], LP, P]
+              (ref:        TableRef[ID, TABLE, LP, P],
+               id:         ID,
+               columnName: ColumnName,
+               value:      String): Either[Error, (String, String)] =
       for {
-        _              ← namedCellsQuery cellByName columnName orError s"projection has no cell with name $columnName"
-        cell           ← ref.cells cellByName columnName orError s"table has no cell with name $columnName"
+        _              ← ref.metadata cellByName columnName orError s"projection has no cell with name $columnName"
+        cell           ← ref.base.metadata cellByName columnName orError s"table has no cell with name $columnName"
         validValue     ← cell fromStr value
-        row            = ref.queryById(id)
+        row            = ref.base.queryById(id)
         updater        = row map (slickTable =>
                             (findColumnWithName(slickTable, columnName) map ensureOptionalColumn(validValue)).get
                           )
@@ -41,27 +40,28 @@ trait crudActions extends tableRefs with columnPicker {
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt.toString, validValue.toString)
 
-    def create[ID, TABLE <: AbstractTable[_]](
-      ref:        BaseTableRef[ID, TABLE],
-      params:     Map[ColumnName, String]): Either[Seq[Error], ID] = {
+    def create[ID, TABLE <: AbstractTable[_]]
+              (ref: BaseTableRef[ID, TABLE],
+               params:     Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
 
-      def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], ID] =
+      def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], Option[ID]] =
       /* first try and insert and see if we can get an id back */
-        Try[ID](db withTransaction (implicit s ⇒ ref.query returning ref.query.map(ref.idCol) insert toInsert)).orElse {
+        Try[Option[ID]](Some(db withTransaction (implicit s ⇒ ref.query returning ref.query.map(ref.idCol) insert toInsert))).orElse {
           /* try again without return of autoincrement value */
           Try(db withTransaction (implicit s ⇒ ref.query.insert(toInsert))).map{
             /* since there was no auto-generated id, dig out the id from what we inserted */
-            _ ⇒ ref.extractIdFromRow(toInsert)
+            _ ⇒ ref.metadata.extractIdFromRow(toInsert)
           }
         }.toEither(t ⇒ Seq(errorExc(t)))
 
       for {
-        toInsert ← ref.cells.parseRow(params)
+        toInsert ← ref.metadata.parseRow(params)
         id       ← doInsert(toInsert)
       } yield id
     }
 
-    def delete[ID, TABLE <: AbstractTable[_]](ref: BaseTableRef[ID, TABLE], id: ID): Either[Error, Unit] =
+    def delete[ID, TABLE <: AbstractTable[_]]
+              (ref: BaseTableRef[ID, TABLE], id: ID): Either[Error, Unit] =
       db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(ref.queryById(id).delete)))
 
     private def ensureOneRowChanged(tn: Try[Int])(implicit s: Session) = tn match {

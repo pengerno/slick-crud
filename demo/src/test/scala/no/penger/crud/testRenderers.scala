@@ -11,7 +11,7 @@ trait testRenderers extends renderers {
 
   case class TestView(
     tableName:  TableName,
-    cells:      Seq[NamedUntypedCell],
+    cells:      Seq[(ColumnName, Cell[Any])],
     content:    Either[(Option[String], Option[Row]), Seq[Row]]){
 
     def id = content.left.map(_._1)
@@ -21,22 +21,21 @@ trait testRenderers extends renderers {
       case Right(rows)     ⇒ rows
     }
   }
-  override def Renderer[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]) =
+  override def Renderer[ID, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]) =
     new Renderer[ID, P] {
       def renderRow(row: P): Seq[ElemFormat] =
-        ref.cells.cellsWithUnpackedValues(row).map {
-          case ((name, c), value) ⇒ cell(name, value, c)
+        ref.metadata.cellsWithUnpackedValues(row).map {
+          case ((name, c), value) ⇒ c.toStr(value)
         }.toIndexedSeq
 
-      override def cell(columnName: ColumnName, value: Any, cell: Cell[Any]) =
-        cell.toStr(value)
+      override def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]): PageFormat =
+        Seq(TestView(ref.base.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
-      override def rows(rows: Seq[(ID, P)]): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.cells.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
+      override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]): PageFormat =
+        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(ref.metadata.idCell.toStr)), Some(renderRow(row))))))
 
-      override def row(id: ID, row: P): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.cells.cells, Left((Some(Cell.toStr(id)), Some(renderRow(row))))))
+      override def createRow[T](knownColumn: Option[(ColumnName, Option[T])]): PageFormat = Seq.empty
 
-      override def missingRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
-  }
+      override def noRow[T](knownColumn: Option[(ColumnName, Option[T])]) = Seq.empty
+    }
 }

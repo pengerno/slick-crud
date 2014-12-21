@@ -1,6 +1,6 @@
 package no.penger.crud
 
-trait updateNotifier {
+trait updateNotifier extends results {
 
   class UpdateNotifier {
     def notifyUpdated(s: CrudSuccess) = ()

@@ -29,9 +29,21 @@ trait GenDataModule extends StoreDomain {
     //listofrandomnames.com
     val names = readLines("names.txt")
 
+    def randomRole = Random.nextInt(3) match {
+      case 0 ⇒ None
+      case 1 ⇒ Some(Role.Employee)
+      case 2 ⇒ Some(Role.Manager)
+    }
+
+    def randomGood = Random.nextInt(3) match {
+      case 0 ⇒ None
+      case 1 ⇒ Some(true)
+      case 2 ⇒ Some(false)
+    }
+
     val employees = stores.flatMap { store ⇒
       0 until howMany map { n ⇒
-        Employee(EmployeeId(0), Name(names.next()), store.id)
+        Employee(EmployeeId(0), Name(names.next()), Option(store.id).filter(_ ⇒ Random.nextBoolean), randomRole, randomGood)
       }
     }
     val products = stores.flatMap { store ⇒

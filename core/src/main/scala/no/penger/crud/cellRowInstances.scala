@@ -1,11 +1,14 @@
 package no.penger.crud
 
-trait cellRowInstances extends cells {
+import scala.language.implicitConversions
+
+trait cellRowInstances extends cellInstances {
 
   /**
    * Use this to use tables mapped to a non-tuple structure.
    **/
-  def mappedCellRow[Mapped, Tupled <: Product : CellRow](apply: Tupled ⇒ Mapped, unapply: Mapped ⇒ Option[Tupled]) =
+  def mappedCellRow[Mapped, Tupled <: Product : CellRow]
+                   (apply: Tupled ⇒ Mapped, unapply: Mapped ⇒ Option[Tupled]): CellRow[Mapped] =
     new CellRow[Mapped] {
       val wrapped                           = implicitly[CellRow[Tupled]]
       override def packValues(vs: Seq[Any]) = apply(wrapped.packValues(vs))

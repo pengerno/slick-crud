@@ -4,12 +4,12 @@ trait renderers extends tableRefs with renderFormat {
 
   def combine(one: PageFormat, two: PageFormat): PageFormat
 
-  def Renderer[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]): Renderer[ID, P]
+  def Renderer[ID, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]): Renderer[ID, P]
 
-  abstract class Renderer[ID: Cell, P] {
-    def cell(columnName: ColumnName, value: Any, cell: Cell[Any]): ElemFormat
-    def rows(rows: Seq[(ID, P)]): PageFormat
-    def row(id: ID, row: P): PageFormat
-    def missingRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat
+  abstract class Renderer[ID, P] {
+    def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]): PageFormat
+    def row[T](id: Option[ID], row: P, via: Option[(ColumnName, T)]): PageFormat
+    def createRow[T](via: Option[(ColumnName, Option[T])]): PageFormat
+    def noRow[T](via: Option[(ColumnName, Option[T])]): PageFormat
   }
 }

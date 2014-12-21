@@ -41,8 +41,10 @@
                 <constraints nullable="false"/>
             </column>
             <column name="works_at" type="varchar(255)">
-                <constraints references="stores(id)" foreignKeyName="store_employees" nullable="false"/>
+                <constraints references="stores(id)" foreignKeyName="store_employees"/>
             </column>
+            <column name="role" type="varchar(10)"/>
+            <column name="good" type="boolean"/>
         </createTable>
     </changeSet>
 </databaseChangeLog>

@@ -1,6 +1,6 @@
 package no.penger
 
-package object crud extends errors with results {
+package object crud{
 
   trait CrudAbstract extends editors with cellRowInstances
 
@@ -9,7 +9,9 @@ package object crud extends errors with results {
   case class ColumnName(override val toString: String)
   case class TableName(override val toString: String)
 
+
   /* work around limitations in scala stdlib, without taking scalaz dependency */
+  type Id[T] = T
 
   private [crud] def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
