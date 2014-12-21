@@ -21,7 +21,7 @@ trait testRenderers extends renderers {
       case Right(rows)     ⇒ rows
     }
   }
-  override def Renderer[ID: Cell, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]) =
+  override def Renderer[ID, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]) =
     new Renderer[ID, P] {
       def renderRow(row: P): Seq[ElemFormat] =
         ref.metadata.cellsWithUnpackedValues(row).map {
@@ -32,10 +32,10 @@ trait testRenderers extends renderers {
         Seq(TestView(ref.base.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
       override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(Cell.toStr(_))), Some(renderRow(row))))))
+        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(ref.metadata.idCell.toStr)), Some(renderRow(row))))))
 
-      override def createRow[T](knownColumn: Option[(ColumnName, T)]): PageFormat = Seq.empty
+      override def createRow[T](knownColumn: Option[(ColumnName, Option[T])]): PageFormat = Seq.empty
 
-      override def noRow[T](knownColumn: Option[(ColumnName, T)]) = Seq.empty
+      override def noRow[T](knownColumn: Option[(ColumnName, Option[T])]) = Seq.empty
     }
 }

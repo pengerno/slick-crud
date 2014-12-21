@@ -1,15 +1,13 @@
-
 package no.penger
 package crud
 
 trait editors extends editorAbstracts with crudActions with renderers with updateNotifier with syntax {
-  import profile.simple._
 
-  case class Editor[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
+  case class Editor[ID, TABLE <: AbstractTable[_], LP, P]
                    (ref: TableRef[ID, TABLE, LP, P],
                     n:   UpdateNotifier) extends EditorAbstract[ID]{
 
-    override val idCell    = implicitly[Cell[ID]]
+    override val idCell    = ref.metadata.idCell
     override val mountedAt = ref.base.mounted
     override val tableName = ref.base.tableName
 
@@ -34,12 +32,13 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
     override val viewNew = Renderer(ref) createRow None
 
     override def view = crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
-      case Nil     ⇒ Renderer(ref).createRow(None)
-      case idsRows ⇒ Renderer(ref) rows (idsRows, None)
+      case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow None
+      case Nil                        ⇒ Renderer(ref) noRow None
+      case idsRows                    ⇒ Renderer(ref) rows (idsRows, None)
     }
 
     override def viewRow(id: ID) = {
-      val rowRef = Some((ref.base.primaryKey, id))
+      val rowRef = Some((ref.metadata.idColName, Some(id)))
       crudAction.read(ref.queryById(id)) match {
         case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
         case Nil                        ⇒ Renderer(ref) noRow rowRef
@@ -51,13 +50,18 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
     }
 
     object viewLinked extends LinkedTableF1[PageFormat]{
-      override def apply[OID: Cell, OTABLE <: AbstractTable[_], OLP, OP, COL](ref: FilteredTableRef[OID, OTABLE, OLP, OP, COL]) = {
-        val rowRef = Some((ref.filterColumn, ref.colValue))
+      override def apply[OID, OTABLE <: AbstractTable[_], OLP, OP, OC, C]
+                        (ref: FilteredTableRef[OID, OTABLE, OLP, OP, OC, C]) = {
         crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
-          case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
-          case Nil                        ⇒ Renderer(ref) noRow rowRef
-          case (id, row) :: Nil           ⇒ Renderer(ref) row (id, row, rowRef)
-          case idsRows                    ⇒ Renderer(ref) rows (idsRows, rowRef)
+          case Nil if ref.base.isEditable     ⇒ Renderer(ref.wrapped) createRow Some((ref.filterColumn, None))
+          case Nil                            ⇒ Renderer(ref.wrapped) noRow Some((ref.filterColumn, None))
+          case (id, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (id, row, Some((ref.filterColumn, referenced)))
+          case idsReferencedRows                        ⇒
+            val (idRows_, referenceds_) = idsReferencedRows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
+              case ((idRows, referenceds), (id, (referenced, row))) ⇒ (idRows :+ (id, row), referenceds + referenced)
+            }
+
+            Renderer(ref.wrapped) rows (idRows_, Some((ref.filterColumn, referenceds_)))
         }
       }
     }

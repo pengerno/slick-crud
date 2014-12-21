@@ -23,7 +23,7 @@ trait crudActions extends tableRefs with columnPicker {
      *
      *  @return old value of cell on success, error otherwise
      */
-    def update[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
+    def update[ID, TABLE <: AbstractTable[_], LP, P]
               (ref:        TableRef[ID, TABLE, LP, P],
                id:         ID,
                columnName: ColumnName,
@@ -40,7 +40,7 @@ trait crudActions extends tableRefs with columnPicker {
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt.toString, validValue.toString)
 
-    def create[ID: BaseColumnType, TABLE <: AbstractTable[_]]
+    def create[ID, TABLE <: AbstractTable[_]]
               (ref: BaseTableRef[ID, TABLE],
                params:     Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
 

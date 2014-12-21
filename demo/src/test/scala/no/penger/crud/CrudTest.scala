@@ -66,7 +66,7 @@ class CrudTest
   val n3            = Name("new name for product three")
   val q1            = 100
 
-  def Ed[ID: BaseColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
+  def Ed[ID: ColumnType : Cell, TABLE <: AbstractTable[_], LP, P]
         (ref: TableRef[ID, TABLE, LP, P], n: UpdateNotifier = noop) =
     Editor(ref, n)
 
@@ -275,7 +275,7 @@ class CrudTest
     val e    = Ed(TableRef(ignoreMounted, Products)(_.id))
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
-    assert(e.viewRow(pid1).head.content === Left((Some(Cell.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
+    assert(e.viewRow(pid1).head.content === Left((Some(implicitly[Cell[ProductId]].toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
     assert(Right(Deleted(e.tableName, pid1)) === e.delete(pid1))
     assert(e.viewRow(pid1).isEmpty)
   }

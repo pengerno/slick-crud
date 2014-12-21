@@ -17,6 +17,5 @@ trait cellInstances extends lower {
   implicit val intCell        = SimpleCell[Int]    (_.toString, _.toInt,     inputType = "number")
   implicit val longCell       = SimpleCell[Long]   (_.toString, _.toLong,    inputType = "number")
   implicit val stringCell     = SimpleCell[String] (identity,   _.ensuring(_.nonEmpty))
-  implicit val booleanCell    = SelectCell[Boolean](_.toString,  _.toBoolean)
-  implicit val optBooleanCell = OptionCell(EnumCell(SimpleCell[Boolean](_.toString, _.toBoolean), List(false, true)))
+  implicit val booleanCell    = BooleanCell[Boolean](_.toString,  _.toBoolean)(Seq(true, false))
 }

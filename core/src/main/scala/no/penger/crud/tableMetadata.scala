@@ -5,7 +5,8 @@ import scala.slick.lifted.{Column, Query}
 trait tableMetadata extends cells with astParser {
   object Metadata {
 
-    def infer[ID, TABLE, P](q: Query[TABLE, P, Seq], idCol: TABLE ⇒ Column[ID])(implicit cr: CellRow[P], icd: Cell[ID]): Metadata[ID, P] = {
+    def infer[ID, TABLE, P](q: Query[TABLE, P, Seq], idCol: TABLE ⇒ Column[ID])
+                           (implicit cr: CellRow[P], icd: Cell[ID]): Metadata[ID, P] = {
       val idQuery = q.map(idCol)
       val IdName  = AstParser.colNames(idQuery).head
       val idCell  = PKCell(icd)
@@ -16,10 +17,11 @@ trait tableMetadata extends cells with astParser {
         case (colName, cell) ⇒ (colName, cell.asInstanceOf[Cell[Any]])
       }
 
-      Metadata(cr.unpackValues, cr.packValues, cells, idCell, IdName, idQuery)
+      Metadata(cr.unpackValues, cr.packValues, cells, idCell, IdName)
     }
 
-    def derive[TABLE, P, OID, OP](q: Query[TABLE, P, Seq], origin: Metadata[OID, OP])(implicit cr: CellRow[P]): Metadata[OID, P] = {
+    def derive[TABLE, P, OID, OP](q: Query[TABLE, P, Seq], origin: Metadata[OID, OP])
+                                 (implicit cr: CellRow[P]): Metadata[OID, P] = {
       /* prefer to keep override cells from origin */
       val cells = cellsWithColumnNames(q) map {
         case (colName, cell) ⇒
@@ -29,7 +31,18 @@ trait tableMetadata extends cells with astParser {
           }
       }
 
-      Metadata(cr.unpackValues, cr.packValues, cells, origin.idCell, origin.idColName, origin.idQuery)
+      Metadata(cr.unpackValues, cr.packValues, cells, origin.idCell, origin.idColName)
+    }
+
+    def withReferencingRow[ID, LP, P, C: Cell]
+                          (q: Query[(Column[C], LP), (C, P), Seq],
+                           origin: Metadata[ID, P]): Metadata[ID, (C, P)] = {
+
+      def unpackValues(cp: (C, P)) = cp._1 +: origin.unpackValues(cp._2)
+      def packValues(as: Seq[Any]): (C, P) = (as.head.asInstanceOf[C], origin.packValues(as.tail))
+      val cells: Seq[(ColumnName, Cell[Any])] = (ColumnName("referenced"), implicitly[Cell[C]].asInstanceOf[Cell[Any]]) +: origin.cells
+
+      Metadata[ID, (C, P)](unpackValues, packValues, cells, origin.idCell, origin.idColName)
     }
 
     private def cellsWithColumnNames[TABLE, P](q: Query[TABLE, P, Seq])(implicit cr: CellRow[P]): Seq[(ColumnName, Cell[_])] =
@@ -40,8 +53,7 @@ trait tableMetadata extends cells with astParser {
                             packValues:   Seq[Any] ⇒ P,
                             cells:        Seq[(ColumnName, Cell[Any])],
                             idCell:       Cell[ID],
-                            idColName:    ColumnName,
-                            idQuery:      Query[Column[ID], ID, Seq]){
+                            idColName:    ColumnName) {
 
     def cellByName(Name: ColumnName): Option[Cell[Any]] =
       cells collectFirst { case (Name, c) => c }
@@ -69,7 +81,7 @@ trait tableMetadata extends cells with astParser {
         }
       }.right.map(packValues)
 
-    def withFkCell[COL](colQ: Query[Column[COL], COL, Seq], wrapper: Cell[COL] ⇒ FKCell[COL]): Metadata[ID, P] = {
+    def withFkCell[COL](colQ: Query[_, _, Seq], wrapper: Cell[COL] ⇒ Cell[COL]): Metadata[ID, P] = {
       val colName  = AstParser.colNames(colQ).head
 
       /* inject foreign key cell unless its a pk cell */

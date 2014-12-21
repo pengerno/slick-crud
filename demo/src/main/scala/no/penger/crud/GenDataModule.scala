@@ -43,7 +43,7 @@ trait GenDataModule extends StoreDomain {
 
     val employees = stores.flatMap { store ⇒
       0 until howMany map { n ⇒
-        Employee(EmployeeId(0), Name(names.next()), store.id, randomRole, randomGood)
+        Employee(EmployeeId(0), Name(names.next()), Option(store.id).filter(_ ⇒ Random.nextBoolean), randomRole, randomGood)
       }
     }
     val products = stores.flatMap { store ⇒
