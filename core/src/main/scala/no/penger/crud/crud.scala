@@ -1,5 +1,7 @@
 package no.penger
 
+import scala.language.implicitConversions
+
 package object crud{
 
   trait CrudAbstract extends editors with cellRowInstances
@@ -11,7 +13,6 @@ package object crud{
 
 
   /* work around limitations in scala stdlib, without taking scalaz dependency */
-  type Id[T] = T
 
   private [crud] def sequence[L, R](result: Iterable[Either[L, R]]): Either[Seq[L], Seq[R]] =
     result.foldLeft[Either[Seq[L], Seq[R]]](Right(Seq.empty)){
@@ -33,7 +34,7 @@ package object crud{
     }
   }
 
-  implicit class ListX[T](val ts: List[T]) extends AnyVal {
+  private[crud] implicit class ListX[T](val ts: List[T]) extends AnyVal {
     def zipMap[U](f: T ⇒ U): List[(U, T)] = ts.map(t ⇒ (f(t), t))
   }
 

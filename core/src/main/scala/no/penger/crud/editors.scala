@@ -53,15 +53,15 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
       override def apply[OID, OTABLE <: AbstractTable[_], OLP, OP, OC, C]
                         (ref: FilteredTableRef[OID, OTABLE, OLP, OP, OC, C]) = {
         crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
-          case Nil if ref.base.isEditable     ⇒ Renderer(ref.wrapped) createRow Some((ref.filterColumn, None))
-          case Nil                            ⇒ Renderer(ref.wrapped) noRow Some((ref.filterColumn, None))
-          case (id, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (id, row, Some((ref.filterColumn, referenced)))
-          case idsReferencedRows                        ⇒
-            val (idRows_, referenceds_) = idsReferencedRows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
-              case ((idRows, referenceds), (id, (referenced, row))) ⇒ (idRows :+ (id, row), referenceds + referenced)
+          case Nil if ref.base.isEditable      ⇒ Renderer(ref.wrapped) createRow Some((ref.filterColumn, None))
+          case Nil                             ⇒ Renderer(ref.wrapped) noRow Some((ref.filterColumn, None))
+          case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (oid, row, Some((ref.filterColumn, referenced)))
+          case rows                        ⇒
+            val (idRows, referees) = rows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
+              case ((idRows_, referees_), (id, (referee, row))) ⇒ (idRows_ :+ (id, row), referees_ + referee)
             }
 
-            Renderer(ref.wrapped) rows (idRows_, Some((ref.filterColumn, referenceds_)))
+            Renderer(ref.wrapped) rows (idRows, Some((ref.filterColumn, referees)))
         }
       }
     }
