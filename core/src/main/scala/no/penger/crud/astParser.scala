@@ -59,11 +59,13 @@ trait astParser {
       def searchFor[T](Ex: SearchResult[T])(under: Node): Seq[T] =
         Dfs.get[Seq[T]](under) {
           /* more than one column selected */
-          case ProductNode(cs) ⇒ cs map {
+          case ProductNode(cs) ⇒ cs flatMap {
             /* normal column */
-            case Ex(name) ⇒ name
+            case Ex(name) ⇒ Seq(name)
             /* optional column */
-            case OptionApply(Ex(name)) ⇒ name
+            case OptionApply(Ex(name)) ⇒ Seq(name)
+            /* nested set of columns */
+            case TypeMapping(child, _, _) ⇒ searchFor(Ex)(child)
           }
           /* exactly one column selected */
           case Ex(name) ⇒ Seq(name)
