@@ -1,16 +1,8 @@
 package no.penger
 
-import scala.language.implicitConversions
-
 package object crud{
 
-  trait CrudAbstract extends editors with cellRowInstances
-
   type AbstractTable[T] = scala.slick.lifted.AbstractTable[T]
-
-  case class ColumnName(override val toString: String)
-  case class TableName(override val toString: String)
-
 
   /* work around limitations in scala stdlib, without taking scalaz dependency */
 
@@ -24,7 +16,7 @@ package object crud{
 
   private[crud] implicit class EitherX[L, R](val e: Either[L, R]) extends AnyVal {
     /* make 'Either' right biased*/
-    def foreach[U](f: R => U): Unit = e.right.foreach(f)
+    def foreach(f: R => Unit): Unit = {e.right.foreach(f); ()}
     def map[RR](f: R => RR): Either[L, RR] = e.right.map(f)
     def flatMap[RR](f: R => Either[L, RR]) = e.right.flatMap(f)
     

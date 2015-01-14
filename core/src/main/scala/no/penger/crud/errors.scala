@@ -1,7 +1,6 @@
 package no.penger.crud
 
 import scala.util.{Failure, Success, Try}
-import scala.language.implicitConversions
 
 trait errors {
   sealed trait Error

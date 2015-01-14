@@ -48,6 +48,7 @@ class CrudTest
     override def notifyUpdateFailure(f: CrudFailure) = {
       f match {
         case UpdateFailed(_, _, _, _, ErrorExc(t)) => t.printStackTrace()
+        case _ ⇒ ()
       }
       fail(f.toString)
     }
@@ -118,7 +119,7 @@ class CrudTest
 
     e.update(pid, ColumnName("name"), n3.value)
 
-    val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value)))
+    val expected = Left((Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
   }
 
@@ -129,7 +130,7 @@ class CrudTest
 
     e.update(pid, ColumnName("name"), n3.value)
 
-    val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.value)))
+    val expected = Left((Some(pid.id.toString), Some(Seq(q1.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
   }
 
@@ -140,7 +141,7 @@ class CrudTest
 
     e.update(pid, ColumnName("name"), n3.value)
 
-    val expected = Left(Some(pid.id.toString), Some(Seq(q1.toString, n3.value)))
+    val expected = Left((Some(pid.id.toString), Some(Seq(q1.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
   }
 
@@ -150,20 +151,29 @@ class CrudTest
 
     e.update(pid, ColumnName("name"), n3.value)
 
-    val expected = Left(Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value, q1.toString, storeId.value)))
+    val expected = Left((Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value, q1.toString, storeId.value))))
     assert(e.viewRow(pid).head.content === expected)
   }
 
   test("update only chosen columns"){
-    val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.soldBy))), failOnUpdateSucceed)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
-    e.update(pid, ColumnName("name"), n3.value)
+    val e        = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.soldBy))), failOnUpdateSucceed)
+    val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
+    val colName  = ColumnName("name")
+    val res      = e.update(pid, colName, n3.value)
+    val expected = Left(UpdateFailed(e.tableName, pid, colName, n3.value, ErrorMsg("projection has no cell with name name")))
+    assert(res === expected)
   }
 
   test("update only valid id") {
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id), failOnUpdateSucceed)
+
     db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
-    e.update(ProductId(10001), ColumnName("name"), n3.value)
+
+    val colName         = ColumnName("name")
+    val nonExistingPid  = ProductId(10001)
+    val res             = e.update(nonExistingPid, colName, n3.value)
+
+    assert(true === res.isLeft)
   }
 
   test("option-mapping in table projection") {
@@ -176,12 +186,17 @@ class CrudTest
     }
     val Stores = TableQuery[StoreT]
 
-    val e   = Ed(TableRef(ignoreMounted, Stores)(_.id), failOnUpdateFail)
-    val sid = StoreId("asdasdsad")
+    val e       = Ed(TableRef(ignoreMounted, Stores)(_.id), failOnUpdateFail)
+    val sid     = StoreId("asdasdsad")
+    val colName = ColumnName("description")
 
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
-    e.update(sid, ColumnName("description"), "")
-    e.update(sid, ColumnName("description"), "arne")
+
+    val res1 = e.update(sid, colName, "")
+    assert(res1 === Right(Updated(e.tableName, sid, colName, None.toString, Some(None).toString)))
+
+    val res2 = e.update(sid, colName, "arne")
+    assert(res2 === Right(Updated(e.tableName, sid, colName, Some(Desc("arne")).toString, Some(None).toString)))
   }
 
   test("updating value that didnt exist") {
@@ -194,11 +209,14 @@ class CrudTest
     }
     val Stores = TableQuery[StoreT]
 
-    val e   = Ed(TableRef(ignoreMounted, Stores)(_.id), failOnUpdateFail)
-    val sid = StoreId("asdasdsad2")
+    val e       = Ed(TableRef(ignoreMounted, Stores)(_.id), failOnUpdateFail)
+    val sid     = StoreId("asdasdsad2")
+    val colName = ColumnName("description")
 
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
-    e.update(sid, ColumnName("description"), "arne")
+
+    val ret = e.update(sid, colName, "arne")
+    assert(ret === Right(Updated(e.tableName, sid, colName, Some(Desc("arne")).toString, Some(None).toString)))
   }
 
   test("update when id column not selected"){
@@ -207,7 +225,7 @@ class CrudTest
 
     e.update(pid, ColumnName("name"), n3.value)
 
-    val expected = Left(Some(pid.id.toString), Some(Vector(n3.value)))
+    val expected = Left((Some(pid.id.toString), Some(Vector(n3.value))))
     assert(e.viewRow(pid).head.content === expected)
   }
 

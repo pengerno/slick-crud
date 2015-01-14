@@ -9,7 +9,23 @@ object Build extends sbt.Build {
   val finnRepo = "Finn repo" at "http://mavenproxy.finntech.no/finntech-internal-release"
 
   override def settings = super.settings ++ Seq(
-    scalacOptions      := Seq("-unchecked", "-deprecation", "-encoding", "UTF-8", "-feature"),
+    scalacOptions ++= Seq(
+      "-deprecation",
+      "-encoding", "UTF-8",
+      "-feature",
+      "-language:existentials",
+      "-language:higherKinds",
+      "-language:implicitConversions",
+      "-unchecked",
+//      "-Xfatal-warnings",
+      "-Xlint",
+      "-Yno-adapted-args",
+      "-Ywarn-dead-code",
+      "-Ywarn-numeric-widen",
+      "-Ywarn-value-discard",
+      "-Xfuture",
+      "-Ywarn-unused-import"
+    ),
     organization       := "no.penger",
     scalaVersion       := "2.11.4",
     resolvers         ++= Seq(finnRepo)

@@ -58,7 +58,7 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
           case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (oid, row, Some((ref.filterColumn, referenced)))
           case rows                        ⇒
             val (idRows, referees) = rows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
-              case ((idRows_, referees_), (id, (referee, row))) ⇒ (idRows_ :+ (id, row), referees_ + referee)
+              case ((idRows_, referees_), (id, (referee, row))) ⇒ (idRows_ :+ ((id, row)), referees_ + referee)
             }
 
             Renderer(ref.wrapped) rows (idRows, Some((ref.filterColumn, referees)))
