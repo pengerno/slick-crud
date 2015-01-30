@@ -4,10 +4,10 @@ package crud
 import javax.servlet.ServletContext
 
 import com.typesafe.scalalogging.LazyLogging
-import org.slf4j.LoggerFactory
 import unfiltered.filter.Plan
 import unfiltered.response._
 
+import scala.slick.driver.H2Driver
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -51,7 +51,7 @@ trait StoreTables extends StoreDomain with slickIntegration {
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id        = column[StoreId]("id")
     def name      = column[Name]   ("name")
-    def descr     = column[Desc]   ("description").?
+    def descr     = column[Desc]   ("description", O.Nullable).?
     def closed    = column[Boolean]("closed")
     def *         = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
   }
@@ -69,12 +69,19 @@ trait StoreTables extends StoreDomain with slickIntegration {
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
-    val worksAt   = column[StoreId]   ("works_at").?
-    val role      = column[Role]      ("role").?
-    val good      = column[Boolean]   ("good").?
+    val worksAt   = column[StoreId]   ("works_at", O.Nullable).?
+    val role      = column[Role]      ("role", O.Nullable).?
+    val good      = column[Boolean]   ("good", O.Nullable).?
     def *         = (id, name, worksAt, role, good) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
+
+  db.withTransaction{
+    implicit tx ⇒
+      Stores.ddl.create
+      Products.ddl.create
+      Employees.ddl.create
+  }
 }
 
 trait StoreCrudInstances extends StoreDomain with cellRowInstances {
@@ -98,19 +105,25 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 }
 
 
-object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with LazyLogging {
+object CrudDemoWebApp extends Plan with LazyLogging {
+  lazy val profile         = H2Driver
+  import profile.simple._
+
+  val db = Database.forURL(
+    url = s"jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
+    driver = "org.h2.Driver"
+  )
 
   class CrudUnfilteredDemo(context: ServletContext) extends StoreTables
                                                     with CrudUnfiltered
                                                     with StoreCrudInstances
                                                     with GenDataModule
                                                     with updateNotifierLogging {
-    val profile = CrudDemoWebApp.profile
-    val db      = CrudDemoWebApp.db
-    val ctx     = context.getContextPath
+    override lazy val profile = CrudDemoWebApp.profile
+    override lazy val db      = CrudDemoWebApp.db
+    override      val ctx     = context.getContextPath
 
     /* generate some data to play with */
-    import profile.simple._
     db.withTransaction{implicit s ⇒
       Stores    insertAll (GenData.stores    :_*)
       Employees insertAll (GenData.employees :_*)
@@ -143,6 +156,5 @@ object CrudDemoWebApp extends db.LiquibaseH2TransactionComponent with Plan with 
       Html5(PageTemplate.page(ctx, title)(body))
   }
 
-  override val log         = LoggerFactory.getLogger(CrudDemoWebApp.getClass)
   override lazy val intent = new CrudUnfilteredDemo(config.getServletContext).intent
 }

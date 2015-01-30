@@ -6,7 +6,6 @@ import sbtrelease.ReleasePlugin._
 object Build extends sbt.Build {
 
   val basename = "slick-crud"
-  val finnRepo = "Finn repo" at "http://mavenproxy.finntech.no/finntech-internal-release"
 
   override def settings = super.settings ++ Seq(
     scalacOptions ++= Seq(
@@ -27,8 +26,7 @@ object Build extends sbt.Build {
       "-Ywarn-unused-import"
     ),
     organization       := "no.penger",
-    scalaVersion       := "2.11.4",
-    resolvers         ++= Seq(finnRepo)
+    scalaVersion       := "2.11.5"
   )
 
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
@@ -51,12 +49,15 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val transactionsVersion = "4"
-  val unfilteredVersion   = "0.8.3"
+  val unfilteredVersion   = "0.8.4"
+
+  val scalatest  = "org.scalatest" %% "scalatest" % "2.2.2" % "test"
+  val testLogger = "org.slf4j" % "slf4j-simple" % "1.7.7"
 
   lazy val crud           = project("core")(
     "com.typesafe.slick"          %% "slick"                      % "2.1.0",
-    "org.scalatest"               %% "scalatest"                  % "2.1.7" % "test"
+    scalatest,
+    testLogger % "test"
   )
 
   lazy val crudUnfiltered = project("unfiltered", crud)(
@@ -71,12 +72,10 @@ object Build extends sbt.Build {
   lazy val crudAll        = project("all", crudUnfiltered, crudLogging)()
 
   lazy val crudDemo       = project("demo", crudAll)(
-    "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion,
     "net.databinder"              %% "unfiltered-jetty"           % unfilteredVersion,
-    "org.slf4j"                    % "slf4j-simple"               % "1.7.7",
-
-    "no.penger"                   %% "tx-testing-liquibase"       % transactionsVersion % "test",
-    "org.scalatest"               %% "scalatest"                  % "2.2.2" % "test"
+    "com.h2database"               % "h2"                         % "1.4.183",
+    scalatest,
+    testLogger
   )
 
   lazy val root = Project(s"$basename-parent", file("."),

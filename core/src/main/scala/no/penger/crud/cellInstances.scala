@@ -1,5 +1,7 @@
 package no.penger.crud
 
+import scala.language.implicitConversions
+
 trait lower extends cells {
   
   /**

@@ -2,9 +2,10 @@ package no.penger
 package crud
 
 import com.typesafe.scalalogging.LazyLogging
-import org.scalatest.FunSuite
 import org.scalactic.TypeCheckedTripleEquals
-import org.slf4j.LoggerFactory
+import org.scalatest.FunSuite
+
+import scala.slick.driver.H2Driver
 
 /**
 * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -12,13 +13,17 @@ import org.slf4j.LoggerFactory
 */
 class CrudTest
   extends FunSuite with TypeCheckedTripleEquals
-  with CrudAbstract with testRenderers                     /* crud with concretization */
-  with StoreTables with StoreCrudInstances                 /* test tables */
-  with db.LiquibaseH2TransactionComponent with LazyLogging /* h2 with tables */ {
+  with CrudAbstract with testRenderers          /* crud with concretization */
+  with StoreTables with StoreCrudInstances      /* test tables */
+  with LazyLogging {
 
-  override val log = LoggerFactory.getLogger(classOf[CrudTest])
-
+  override lazy val profile = H2Driver
   import profile.simple._
+
+  override lazy val db = Database.forURL(
+    url = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
+    driver = "org.h2.Driver"
+  )
 
   /* some tests use this table in this non-projected variant*/
   class ProductTupledT(tag: Tag) extends Table[(ProductId, Name, Int, StoreId)](tag, "products") {
