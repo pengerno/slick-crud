@@ -43,19 +43,6 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
           case Right(Deleted(table, _)) ⇒
             respond(s"deleted id $id from $table")(editor.view)
         }
-      
-      /* update row */
-      case POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
-        updates.headOption match {
-          case Some((columnName, value)) =>
-            editor.update(id, columnName, value) match {
-              case Left(failed) ⇒
-                BadRequest ~~> ResponseString(failed.toString)
-              case Right(u) ⇒
-                Ok ~~> ResponseString(u.toString)
-            }
-          case _ => BadRequest ~~> ResponseString("No column -> value provided")
-        }
 
       /* show create new row of table */
       case GET(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) ⇒
@@ -69,6 +56,19 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
           case Left(errors)                    ⇒ BadRequest ~~> ResponseString(errors.ts.mkString("\n"))
           case Right(Created(table, Some(id))) ⇒ respond(s"created new $table")(editor.viewRow(id))
           case Right(Created(table, None))     ⇒ respond(s"created new $table")(editor.view)
+        }
+
+      /* update row */
+      case POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
+        updates.headOption match {
+          case Some((columnName, value)) =>
+            editor.update(id, columnName, value) match {
+              case Left(failed) ⇒
+                BadRequest ~~> ResponseString(failed.toString)
+              case Right(u) ⇒
+                Ok ~~> ResponseString(u.toString)
+            }
+          case _ => BadRequest ~~> ResponseString("No column -> value provided")
         }
     }
   }
