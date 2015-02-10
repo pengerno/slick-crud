@@ -29,6 +29,20 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
       case ContextPath(_, FuzzySeg(MountedAt)) ⇒
         respond(title = MountedAt.head)(editor.view)
 
+      /* show create new row of table */
+      case GET(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) ⇒
+        respond(title = s"new ${editor.tableName}") (
+          editor.viewNew
+        )
+
+      /* create new row */
+      case POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
+        editor.create(params) match {
+          case Left(errors)                    ⇒ BadRequest ~~> ResponseString(errors.ts.mkString("\n"))
+          case Right(Created(table, Some(id))) ⇒ respond(s"created new $table")(editor.viewRow(id))
+          case Right(Created(table, None))     ⇒ respond(s"created new $table")(editor.view)
+        }
+
       /* show table row*/
       case GET(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) ⇒
         respond(title = s"${editor.tableName} for $id") (
@@ -42,20 +56,6 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
             BadRequest ~~> ResponseString(failed.toString)
           case Right(Deleted(table, _)) ⇒
             respond(s"deleted id $id from $table")(editor.view)
-        }
-
-      /* show create new row of table */
-      case GET(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) ⇒
-        respond(title = s"new ${editor.tableName}") (
-          editor.viewNew
-        )
-
-      /* create new row */
-      case POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
-        editor.create(params) match {
-          case Left(errors)                    ⇒ BadRequest ~~> ResponseString(errors.ts.mkString("\n"))
-          case Right(Created(table, Some(id))) ⇒ respond(s"created new $table")(editor.viewRow(id))
-          case Right(Created(table, None))     ⇒ respond(s"created new $table")(editor.view)
         }
 
       /* update row */

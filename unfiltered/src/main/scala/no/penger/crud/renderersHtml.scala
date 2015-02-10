@@ -119,9 +119,9 @@ trait renderersHtml extends renderers with renderFormatHtml {
     override def createRow[T](via: Option[(ColumnName, Option[T])]) = withId {
       uniqueId ⇒
         <table id={uniqueId}>
-          {header(via, introWord = Some("New"), uidShowSave = Some(uniqueId), showDelete = None, showNew = false)}
+          {header(via, introWord = Some("Create new"), uidShowSave = Some(uniqueId), showDelete = None, showNew = false)}
           <tbody> {
-            ref.metadata.cells.map{ t => (t, via) match {
+            ref.base.metadata.cells.map{ t => (t, via) match {
               case ((name, cell), Some((colName, Some(value)))) if name =:= colName =>
                 <tr><th class="columnHeader">{name}</th>{renderEmptyCell(cell, Some(cell.toStr(value)))}</tr>
               case ((name, cell), _) ⇒

@@ -16,8 +16,8 @@ trait tableRefs extends tableMetadata with slickIntegration {
    * @tparam P the projection, for example (Int, String)
    */
   abstract class TableRef[ID, TABLE <: AbstractTable[_], LP, P]{
-    def base:              BaseTableRef[ID, TABLE]
-    def metadata:          Metadata[ID, P]
+    val base:              BaseTableRef[ID, TABLE]
+    val metadata:          Metadata[ID, P]
     def query:             Query[LP, P, Seq]
     def queryById(id: ID): Query[LP, P, Seq]
   }
@@ -41,7 +41,7 @@ trait tableRefs extends tableMetadata with slickIntegration {
     override val base               = wrapped.base
     override val query              = proj(wrapped.query)
     override def queryById(id: ID)  = proj(wrapped.queryById(id))
-    override def metadata           = Metadata.derive(query, wrapped.metadata)
+    override val metadata           = Metadata.derive(query, wrapped.metadata)
   }
 
   case class FilteredTableRef[ID, TABLE <: AbstractTable[_], LP, P, C, OC: Cell]
