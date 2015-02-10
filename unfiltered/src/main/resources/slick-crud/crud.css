@@ -43,7 +43,6 @@ caption {
 
 td {
     text-align: right;
-    width: 100%
     padding: 3px;
     background: #fafafa;
 }
@@ -58,7 +57,6 @@ table tr:hover td {
 
 table input, textarea {
     text-align: right;
-    width: 100%;
     border: none;
     background: transparent;
     margin: 1px;

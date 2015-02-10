@@ -2,6 +2,7 @@ var no = no || {};
 no.penger = no.penger || {};
 no.penger.crud = no.penger.crud || {};
 
+
 /*
     This code is... terrible, i know.
 
@@ -36,6 +37,40 @@ no.penger.crud.makeEditable = function(editable, onChange){
             $(this).blur();
         }
     })
+};
+
+// i hated doing column adjustments in css enough that i went with this js solution snipped from http://stackoverflow.com/a/22423199
+no.penger.crud.adjust = function(elements, offset, min, max) {
+    // initialize parameters
+    offset = offset || 0;
+    min    = min    || 0;
+    max    = max    || Infinity;
+    elements.each(function() {
+        var element = $(this);
+        // add element to measure pixel length of text
+        var id = btoa(Math.floor(Math.random() * Math.pow(2, 64)));
+        var tag = $('<span id="' + id + '">' + element.val() + '</span>').css({
+            'display': 'none',
+            'font-family': element.css('font-family'),
+            'font-size': element.css('font-size')
+        }).appendTo('body');
+        // adjust element width on keydown
+        function update() {
+            // give browser time to add current letter
+            setTimeout(function() {
+                // prevent whitespace from being collapsed
+                tag.html(element.val().replace(/ /g, '&nbsp'));
+                // clamp length and prevent text from scrolling
+                var size = Math.max(min, Math.min(max, tag.width() + offset));
+                if (size < max)
+                    element.scrollLeft(0);
+                // apply width to element
+                element.width(size);
+            }, 0);
+        }
+        update();
+        element.keydown(update);
+    });
 };
 
 no.penger.crud.single = function(url, root){
@@ -91,7 +126,9 @@ no.penger.crud.single = function(url, root){
                     window.location = url;
                 });
             }
-        })
+        });
+
+        no.penger.crud.adjust($('input'), 10, 100, 500);
     }
 
     $(setup)
@@ -157,7 +194,7 @@ no.penger.crud.view = function(path, root){
             no.penger.crud.send(path + "/" + id, data, function(){
                 elem.text(old);
             });
-        })
+        });
 
         no.penger.crud.makeEditable($(root + ' select'), function(text, old){
             var elem   = $(this);
@@ -185,13 +222,16 @@ no.penger.crud.view = function(path, root){
             no.penger.crud.send(path + "/" + id, data, function(){
                 self.checked = !checked;
             })
-        })
+        });
+
+        no.penger.crud.adjust($('input'), 10, 100, 500);
     }
 
     $(setup)
 };
 
 no.penger.crud.send = function(url, data, undo){
+    no.penger.crud.adjust($('input'), 10, 100, 500);
     $.ajax({
         url: url,
         type: 'post',
