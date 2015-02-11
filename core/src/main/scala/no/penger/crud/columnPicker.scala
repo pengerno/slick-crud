@@ -13,7 +13,7 @@ trait columnPicker extends astParser {
   object findColumnWithName {
     def apply[TABLE <: AbstractTable[_]](slickTable: TABLE, name: ColumnName): Option[Column[Any]] =
       columns(slickTable) collectFirst {
-        case col if AstParser.colName(col) =:= name ⇒ col
+        case col if AstParser.colName(slickTable, col).name =:= name ⇒ col
       }
 
     /** To get at the columns here, we have to resort to reflection - I don't see any other way */

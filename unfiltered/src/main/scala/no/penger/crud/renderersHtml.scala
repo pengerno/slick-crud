@@ -28,7 +28,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
     val base = ctx + ref.base.mounted
 
     /* generate a random id for the table we render, for frontend to distinguish multiple tables */
-    def newUniqueId = ref.base.tableName+UUID.randomUUID().toString.filter(_.isLetterOrDigit)
+    def newUniqueId = ref.metadata.tableName.toString + UUID.randomUUID().toString.filter(_.isLetterOrDigit)
     def withId[T](f: String ⇒ T) = f(newUniqueId)
 
     /* this is a hack that is needed because if a column has an optional
@@ -41,11 +41,11 @@ trait renderersHtml extends renderers with renderFormatHtml {
       case ok                         ⇒ ok
     }
 
-    def innerCell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: CacheLookup): ElemFormat =
+    def innerCell(columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup): ElemFormat =
       anyCell match {
         case PKCell(_) =>
           <a href={base + "/" + anyCell.toStr(value)} class="btn-style">
-            {ref.base.tableName + " ("}<strong>{anyCell.toStr(value)}</strong>{")"}
+            {ref.metadata.tableName.toString + " ("}<strong>{anyCell.toStr(value)}</strong>{")"}
           </a>
 
         case b: BooleanCell[_] ⇒
@@ -65,18 +65,19 @@ trait renderersHtml extends renderers with renderFormatHtml {
         case c => <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
       }
 
-    def cell(columnName: ColumnName, value: Any, anyCell: Cell[Any], cache: CacheLookup, rowHasId: Boolean) =
+    def cell(mainTable: TableName, columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup, rowHasId: Boolean) =
       <td>{
         innerCell(columnName, value, anyCell, cache)
-          .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable && rowHasId)
+          .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable && rowHasId && mainTable =:= columnName.table)
         }</td>
 
     def renderEmptyCell(cell: Cell[Any], valueOpt: Option[String]) = valueOpt match {
       case Some(value) ⇒ <td><input type="text" placeholder={cell.typeName} value={value}/></td>
       case _           ⇒ <td><input type="type" placeholder={cell.typeName}/></td>
     }
+    override def message(s: String) = <h2>{s}</h2>
 
-    override def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]) = withId {
+    override def rows[T](mainTable: TableName, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]) = withId {
       uniqueId ⇒
         val cache = new CacheLookup
         <div>
@@ -92,7 +93,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
                 case ((idOpt, row), idx) ⇒
                   <tr db-id={idOpt.fold("missing")(ref.metadata.idCell.toStr)} class={if (idx % 2 == 0) "even" else ""}>{
                     ref.metadata.cellsWithUnpackedValues(row).map {
-                      case ((colName, c), value) ⇒ cell(colName, value, c, cache, idOpt.isDefined)
+                      case ((colName, c), value) ⇒ cell(mainTable, colName, value, c, cache, idOpt.isDefined)
                     }}
                   </tr>
               }
@@ -102,7 +103,7 @@ trait renderersHtml extends renderers with renderFormatHtml {
         </div>
     }
 
-    override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]) = withId {
+    override def row[T](mainTable: TableName, idOpt: Option[ID], row: P, via: Option[(ColumnInfo, T)]) = withId {
       uniqueId ⇒
         val cache = new CacheLookup
 
@@ -110,13 +111,13 @@ trait renderersHtml extends renderers with renderFormatHtml {
           {header(via, introWord = None, uidShowSave = None, showDelete = idOpt, showNew = true)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.metadata.cellsWithUnpackedValues(row).map{
-            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(name, value, c, cache, idOpt.isDefined)}</tr>
+            case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(mainTable, name, value, c, cache, idOpt.isDefined)}</tr>
           }}
         </table>
         <script type="text/javascript">{s"no.penger.crud.single('$base', '#$uniqueId')"}</script>
     }
 
-    override def createRow[T](via: Option[(ColumnName, Option[T])]) = withId {
+    override def createRow[T](via: Option[(ColumnInfo, Option[T])]) = withId {
       uniqueId ⇒
         <table id={uniqueId}>
           {header(via, introWord = Some("Create new"), uidShowSave = Some(uniqueId), showDelete = None, showNew = false)}
@@ -133,10 +134,10 @@ trait renderersHtml extends renderers with renderFormatHtml {
         <script type="text/javascript">{s"no.penger.crud.neew('$base', '#$uniqueId')"}</script>
     }
 
-    override def noRow[T](via: Option[(ColumnName, Option[T])]) =
+    override def noRow[T](via: Option[(ColumnInfo, Option[T])]) =
       header(via, introWord = Some("No"), uidShowSave = None, showDelete = None, showNew = false)
 
-    def header[T](via:           Option[(ColumnName, T)],
+    def header[T](via:           Option[(ColumnInfo, T)],
                   introWord:     Option[String],
                   uidShowSave:   Option[String],
                   showDelete:    Option[ID],
@@ -144,10 +145,10 @@ trait renderersHtml extends renderers with renderFormatHtml {
       <caption class="columnHeader">
         <strong>{
           (via, introWord) match {
-            case (Some((colName, value)), Some(i)) => s"$i ${ref.base.tableName} for $colName = $value"
-            case (Some((colName, value)), None)    =>    s"${ref.base.tableName} for $colName = $value"
-            case (None,                   Some(i)) => s"$i ${ref.base.tableName}"
-            case (None,                   None)    =>        ref.base.tableName
+            case (Some((colName, value)), Some(i)) => s"$i ${ref.metadata.tableName} for $colName = $value"
+            case (Some((colName, value)), None)    =>    s"${ref.metadata.tableName} for $colName = $value"
+            case (None,                   Some(i)) => s"$i ${ref.metadata.tableName}"
+            case (None,                   None)    =>        ref.metadata.tableName
           }}</strong>
         {if (ref.base.isEditable && showNew) <a class="btn-style" href={base + "/new"}>New</a> else NodeSeq.Empty}
         {uidShowSave match {

@@ -28,10 +28,9 @@ trait tableRefs extends tableMetadata with slickIntegration {
                           isEditable: Boolean,
                           idCol:      P ⇒ Column[ID])
                          (implicit cr: CellRow[P#TableElementType]) extends TableRef[ID, P, P, P#TableElementType]{
-    override val metadata          = Metadata.infer(query, idCol)
+    override val metadata          = Metadata.infer(AstParser.tableName(query), query, idCol)
     override val base              = this
     override def queryById(id: ID) = query.filter(row ⇒ idCol(row) === id)
-    val tableName                  = AstParser.tableName(query)
   }
 
   case class ProjectedTableRef[ID, TABLE <: AbstractTable[_], LP, P, QLP, QP: CellRow]

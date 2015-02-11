@@ -41,4 +41,6 @@ package object crud{
       a
     }
   }
+
+  implicit def any2stringadd(x: Option[Unit]): Option[Unit] = x
 }

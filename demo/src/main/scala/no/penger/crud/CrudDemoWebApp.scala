@@ -7,6 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import unfiltered.filter.Plan
 import unfiltered.response._
 
+import scala.slick.ast.JoinType
 import scala.slick.driver.H2Driver
 import scala.xml.NodeSeq
 
@@ -37,7 +38,7 @@ trait StoreDomain{
   }
 }
 
-trait StoreTables extends StoreDomain with slickIntegration {
+trait StoreTables extends StoreDomain with dbIntegration {
   import profile.simple._
 
   /* these type class instances are to enable the use of the types in slick */
@@ -56,6 +57,13 @@ trait StoreTables extends StoreDomain with slickIntegration {
     def *         = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
   }
   val Stores = TableQuery[StoreT]
+
+  class StoreNickNamesT(tag: Tag) extends Table[(StoreId, String)](tag, "store_nicknames"){
+    def id = column[StoreId]("id")
+    def nickname = column[String]("nickname")
+    def * = (id, nickname)
+  }
+  val StoreNickNames = TableQuery[StoreNickNamesT]
 
   class ProductT(tag: Tag) extends Table[Product](tag, "products") {
     def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
@@ -79,6 +87,7 @@ trait StoreTables extends StoreDomain with slickIntegration {
   db.withTransaction{
     implicit tx ⇒
       Stores.ddl.create
+      StoreNickNames.ddl.create
       Products.ddl.create
       Employees.ddl.create
   }
@@ -125,32 +134,45 @@ object CrudDemoWebApp extends Plan with LazyLogging {
 
     /* generate some data to play with */
     db.withTransaction{implicit s ⇒
-      Stores    insertAll (GenData.stores    :_*)
-      Employees insertAll (GenData.employees :_*)
-      Products  insertAll (GenData.products  :_*)
+      Stores         insertAll (GenData.stores         :_*)
+      StoreNickNames insertAll (GenData.storeNicknames :_*)
+      Employees      insertAll (GenData.employees      :_*)
+      Products       insertAll (GenData.products       :_*)
     }
 
     object notifier extends UpdateNotifierLogging with LazyLogging
 
-    val storesRef    = TableRef("/stores",    Stores, isEditable = true)(_.id)
+    val storesRef: BaseTableRef[StoreId, StoreT] =
+      TableRef("/stores",    Stores, isEditable = true)(_.id)
 
-    val employeeRef  = TableRef("/employees", Employees, isEditable = true)(_.id)
-      .projected(_.sortBy(_.name.asc))
-      .linkedOn(_.worksAt, storesRef)(_.id)(_ === _)
+    val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
+      TableRef("/employees", Employees, isEditable = true)(_.id)
+       .projected(_.sortBy(_.name.asc))
+       .linkedOn(_.worksAt, storesRef)(_.id)(_ === _)
 
-    val productsRef  = TableRef("/products",  Products)(_.id)
-      .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
-      .linkedOn(_._2, storesRef)(_.id)(_ === _)
+    val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
+      TableRef("/products",  Products)(_.id)
+       .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
+       .linkedOn(_._2, storesRef)(_.id)(_ === _)
 
-    val storesRefRef = storesRef
-      .projected(_.sortBy(_.name))
-      .linkedOn(_.id, employeeRef)(_.worksAt)(_ === _)
-      .linkedOn(_.id, productsRef)(_._2)(_ === _)
+    val storeNickNames: TableRef[StoreId, StoreNickNamesT, StoreNickNamesT, (StoreId, String)] =
+      TableRef("/storeNicknames",  StoreNickNames)(_.id)
+       .linkedOn(_.id, storesRef)(_.id)(_ === _)
+
+    val storesRefRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
+      storesRef
+       .projected(_.sortBy(_.name))
+       .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id).map{ case (s, d) ⇒ (s.id, s.name, s.descr, s.closed, d.nickname.?)})
+       .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
+       .linkedOn(_._1, productsRef)(_._2)(_ === _)
+       .linkedOn(_._1, storeNickNames)(_.id)(_ === _)
 
     override val editors = Seq(
       Editor(employeeRef,  notifier),
       Editor(productsRef,  notifier),
-      Editor(storesRefRef, notifier))
+      Editor(storesRefRef, notifier),
+      Editor(storeNickNames, notifier)
+    )
 
     override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] =
       Html5(PageTemplate.page(ctx, title)(body))
