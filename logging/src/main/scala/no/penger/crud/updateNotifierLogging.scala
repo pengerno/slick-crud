@@ -8,7 +8,7 @@ trait updateNotifierLogging extends updateNotifier {
 
     override def notifyUpdated(s: CrudSuccess) = s match {
       case Created(t, id)                 ⇒ logger.info(s"Added row for table $t with id $id")
-      case Updated(t, id, col, new_, old) ⇒ logger.info(s"Updated table $t for row $id for column $col from $old to $new_")
+      case Updated(t, id, col, from, to)  ⇒ logger.info(s"Updated table $t for row $id for column $col from $from to $to")
       case Deleted(t, id)                 ⇒ logger.info(s"Deleted row for table $t with id $id")
     }
 
@@ -18,12 +18,12 @@ trait updateNotifierLogging extends updateNotifier {
     }
 
     def errorMessages(es: Seq[Error]) = es.map {
-      case ErrorExc(t)   ⇒ t.getMessage
+      case ErrorExc(t)   ⇒ t.getClass.getName + ": " + t.getMessage
       case ErrorMsg(msg) ⇒ msg
     }.mkString(", ")
 
     override def notifyUpdateFailure(f: CrudFailure) = f match {
-      case CreateFailed(t, errors)            ⇒ errors.toList match {
+      case CreateFailed(t, errors)                ⇒ errors.toList match {
         case firstError :: Nil ⇒ warn(firstError, s"Failed to create new row for table $t")
         case _                 ⇒ logger.warn(s"Failed to create new row for table $t: ${errorMessages(errors)}")
       }

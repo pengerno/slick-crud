@@ -27,7 +27,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration {
               (ref:        TableRef[ID, TABLE, LP, P],
                id:         ID,
                columnName: ColumnName,
-               value:      String): Either[Error, (String, String)] =
+               value:      String): Either[Error, (Option[String], String)] =
       for {
         _              ← ref.metadata cellByName columnName orError s"projection has no cell with name $columnName"
         cell           ← ref.base.metadata cellByName columnName orError s"table has no cell with name $columnName"
@@ -38,7 +38,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration {
                           )
         oldValueOpt    ← Try(db withSession (implicit s ⇒ updater.firstOption)).toEither(errorExc)
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
-      } yield (oldValueOpt.toString, validValue.toString)
+      } yield (oldValueOpt map cell.toStr, value)
 
     def create[ID, TABLE <: AbstractTable[_]]
               (ref:    BaseTableRef[ID, TABLE],

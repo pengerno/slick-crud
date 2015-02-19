@@ -165,7 +165,7 @@ class CrudTest
     val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
     val colName  = ColumnName("name")
     val res      = e.update(pid, colName, n3.value)
-    val expected = Left(UpdateFailed(e.tableName, pid, colName, n3.value, ErrorMsg("projection has no cell with name name")))
+    val expected = Left(UpdateFailed(e.tableName, colName, cellProductId.toStr(pid), n3.value, ErrorMsg("projection has no cell with name name")))
     assert(res === expected)
   }
 
@@ -198,10 +198,10 @@ class CrudTest
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
     val res1 = e.update(sid, colName, "")
-    assert(res1 === Right(Updated(e.tableName, sid, colName, None.toString, Some(None).toString)))
+    assert(res1 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "")))
 
     val res2 = e.update(sid, colName, "arne")
-    assert(res2 === Right(Updated(e.tableName, sid, colName, Some(Desc("arne")).toString, Some(None).toString)))
+    assert(res2 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
   test("updating value that didnt exist") {
@@ -221,7 +221,7 @@ class CrudTest
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
     val ret = e.update(sid, colName, "arne")
-    assert(ret === Right(Updated(e.tableName, sid, colName, Some(Desc("arne")).toString, Some(None).toString)))
+    assert(ret === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
   test("update when id column not selected"){
@@ -263,7 +263,7 @@ class CrudTest
       case Left(CreateFailed(_, fs))    ⇒ fail(fs.head)
       case Right(Created(_, None))      ⇒ fail("no id found")
       case Right(Created(_, Some(pid))) ⇒
-        val view = e.viewRow(pid)
+        val view = e.viewRow(cellProductId.fromStr(pid).right.get)
         containAssert(shouldContain = true, view, quantity.toString)
     }
   }
@@ -282,10 +282,10 @@ class CrudTest
 
   test("create without auto-increment"){
     val e   = Ed(TableRef(ignoreMounted, Stores)(_.id))
-    val sid = StoreId("storeId")
+    val sid = "storeId"
     val ret = e.create(
       Map[ColumnName, String](
-        ColumnName("id")          → sid.value,
+        ColumnName("id")          → sid,
         ColumnName("name")        → "my store",
         ColumnName("description") → storeId.value.toString,
         ColumnName("closed")      → true.toString
@@ -298,8 +298,8 @@ class CrudTest
     val e    = Ed(TableRef(ignoreMounted, Products)(_.id))
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
-    assert(e.viewRow(pid1).head.content === Left((Some(implicitly[Cell[ProductId]].toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
-    assert(Right(Deleted(e.tableName, pid1)) === e.delete(pid1))
+    assert(e.viewRow(pid1).head.content === Left((Some(cellProductId.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
+    assert(Right(Deleted(e.tableName, cellProductId.toStr(pid1))) === e.delete(pid1))
     assert(e.viewRow(pid1).isEmpty)
   }
 }

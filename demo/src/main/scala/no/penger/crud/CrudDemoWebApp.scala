@@ -27,8 +27,8 @@ trait StoreDomain{
   sealed abstract class Role(val name: String)
 
   object Role{
-    case object Employee extends Role("Employee")
-    case object Manager extends Role("Manager")
+    case object Employee extends Role("employee")
+    case object Manager extends Role("manager")
 
     val values = List(Employee, Manager)
     def get(s: String) = s match {
@@ -98,12 +98,12 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
    * we need to provide cell instances for every type we expose through slick-crud,
    *  in order for it to know how to render and parse them, analogously to slick
    */
-  implicit val c1 = SimpleCell[Name](_.value, Name(_).ensuring(_.value.nonEmpty))
-  implicit val c2 = SimpleCell[Desc](_.value, Desc(_).ensuring(_.value.nonEmpty))
-  implicit val c3 = SimpleCell[StoreId](_.value, StoreId(_).ensuring(_.value.nonEmpty), isEditable = true)
-  implicit val c4 = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
-  implicit val c5 = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
-  implicit val c6 = ConstrainedCell[Role](SimpleCell[Role](_.name, Role.get), None)(Role.values)
+  implicit val cellName       = SimpleCell[Name](_.value, Name(_).ensuring(_.value.nonEmpty))
+  implicit val cellDesc       = SimpleCell[Desc](_.value, Desc(_).ensuring(_.value.nonEmpty))
+  implicit val cellStoreId    = SimpleCell[StoreId](_.value, StoreId(_).ensuring(_.value.nonEmpty), isEditable = true)
+  implicit val cellProductId  = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
+  implicit val cellEmployeeId = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
+  implicit val cellRole       = ConstrainedCell[Role](SimpleCell[Role](_.name, Role.get), None)(Role.values)
   /**
    * These cellRow mapping instances are necessary in order to expose
    *  tables that have default projections to non-tuple structures.

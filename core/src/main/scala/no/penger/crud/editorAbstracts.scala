@@ -12,8 +12,8 @@ trait editorAbstracts extends renderFormat with cells with results {
     def viewNew: PageFormat
     def viewRow(id: ID): PageFormat
 
-    def create(params: Map[ColumnName, String]): Either[CreateFailed, Created[ID]]
-    def update(id: ID, columnName: ColumnName, value: String): Either[UpdateFailed[ID], Updated[ID]]
-    def delete(id: ID): Either[DeleteFailed[ID], Deleted[ID]]
+    def create(params: Map[ColumnName, String]): Either[CreateFailed, Created]
+    def update(id: ID, columnName: ColumnName, value: String): Either[UpdateFailed, Updated]
+    def delete(id: ID): Either[DeleteFailed, Deleted]
   }
 }

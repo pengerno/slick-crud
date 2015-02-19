@@ -13,20 +13,20 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
 
     override def create(params: Map[ColumnName, String]) =
       crudAction.create(ref.base, params) biMap (
-        errors ⇒ CreateFailed(tableName, errors) andThen n.notifyUpdateFailure,
-        id     ⇒ Created(     tableName, id)     andThen n.notifyUpdated
+        errors ⇒ CreateFailed(tableName, errors)               andThen n.notifyUpdateFailure,
+        id     ⇒ Created(     tableName, id.map(idCell.toStr)) andThen n.notifyUpdated
       )
 
     override def update(id: ID, columnName: ColumnName, value: String) =
       crudAction.update(ref, id, columnName, value) biMap (
-        error       ⇒ UpdateFailed(tableName, id, columnName, value, error)         andThen n.notifyUpdateFailure,
-        oldNew      ⇒ Updated(     tableName, id, columnName, oldNew._2, oldNew._1) andThen n.notifyUpdated
+        {error           ⇒ UpdateFailed(tableName, columnName, idCell.toStr(id), value, error) andThen n.notifyUpdateFailure},
+        {case (from, to) ⇒ Updated(     tableName, columnName, idCell.toStr(id), from, to) andThen n.notifyUpdated}
       )
 
     override def delete(id: ID) =
       crudAction.delete(ref.base, id) biMap (
-        error ⇒ DeleteFailed(tableName, id, error) andThen n.notifyUpdateFailure,
-        _     ⇒ Deleted(     tableName, id)        andThen n.notifyUpdated
+        error ⇒ DeleteFailed(tableName, idCell.toStr(id), error) andThen n.notifyUpdateFailure,
+        _     ⇒ Deleted(     tableName, idCell.toStr(id))        andThen n.notifyUpdated
       )
 
     override def message(msg: String): PageFormat = Renderer(ref) message msg
