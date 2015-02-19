@@ -1,11 +1,15 @@
 package no.penger.crud
 
+import javax.servlet.http.HttpServletRequest
+
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.request._
 import unfiltered.response._
 
 trait unfilteredIntegration extends Plan with editorAbstracts with extractors with resources {
+
+  override final type REQ = HttpRequest[HttpServletRequest]
 
   /* all the editors you want to expose */
   def editors: Seq[EditorAbstract[_]]
@@ -39,11 +43,11 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         )
 
       /* create new row */
-      case POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
-        editor.create(params) match {
-          case Left(errors)                    ⇒ respondMessage(BadRequest, errors.ts.mkString("\n"))
-          case Right(Created(table, Some(id))) ⇒ respond(s"created new $table")(editor.viewRow(id))
-          case Right(Created(table, None))     ⇒ respond(s"created new $table")(editor.view)
+      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
+        editor.create(req, params) match {
+          case Left(errors)                        ⇒ respondMessage(BadRequest, errors.ts.mkString("\n"))
+          case Right(Created(table, Some(Id(id)))) ⇒ respond(s"created new $table")(editor.viewRow(id))
+          case Right(Created(table, _))            ⇒ respond(s"created new $table")(editor.view)
         }
 
       /* show table row*/
@@ -53,8 +57,8 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         )
 
       /* delete row */
-      case DELETE(ContextPath(_, FuzzySeg(MountedAt:+ Id(id)))) ⇒
-        editor.delete(id) match {
+      case req@DELETE(ContextPath(_, FuzzySeg(MountedAt:+ Id(id)))) ⇒
+        editor.delete(req, id) match {
           case Left(failed) ⇒
             respondMessage(BadRequest, failed.toString)
           case Right(Deleted(table, _)) ⇒
@@ -62,10 +66,10 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         }
 
       /* update row */
-      case POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
+      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
         updates.headOption match {
           case Some((columnName, value)) =>
-            editor.update(id, columnName, value) match {
+            editor.update(req, id, columnName, value) match {
               case Left(failed) ⇒
                 BadRequest ~~> ResponseString(failed.toString)
               case Right(u) ⇒

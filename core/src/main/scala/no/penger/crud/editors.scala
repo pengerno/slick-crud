@@ -1,7 +1,7 @@
 package no.penger
 package crud
 
-trait editors extends editorAbstracts with crudActions with renderers with updateNotifier with syntax {
+trait editors extends editorAbstracts with crudActions with renderers with syntax {
 
   case class Editor[ID, TABLE <: AbstractTable[_], LP, P]
                    (ref: TableRef[ID, TABLE, LP, P],
@@ -11,22 +11,22 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
     override val mountedAt = ref.base.mounted
     override val tableName = ref.metadata.tableName
 
-    override def create(params: Map[ColumnName, String]) =
+    override def create(req: REQ, params: Map[ColumnName, String]) =
       crudAction.create(ref.base, params) biMap (
-        errors ⇒ CreateFailed(tableName, errors) andThen n.notifyUpdateFailure,
-        id     ⇒ Created(     tableName, id)     andThen n.notifyUpdated
+        errors ⇒ CreateFailed(tableName, errors)               andThen n.notifyUpdateFailure(req),
+        id     ⇒ Created(     tableName, id.map(idCell.toStr)) andThen n.notifyUpdated(req)
       )
 
-    override def update(id: ID, columnName: ColumnName, value: String) =
+    override def update(req: REQ, id: ID, columnName: ColumnName, value: String) =
       crudAction.update(ref, id, columnName, value) biMap (
-        error       ⇒ UpdateFailed(tableName, id, columnName, value, error)         andThen n.notifyUpdateFailure,
-        oldNew      ⇒ Updated(     tableName, id, columnName, oldNew._2, oldNew._1) andThen n.notifyUpdated
+        error            ⇒ UpdateFailed(tableName, columnName, idCell.toStr(id), value, error) andThen n.notifyUpdateFailure(req),
+        {case (from, to) ⇒ Updated(     tableName, columnName, idCell.toStr(id), from, to) andThen n.notifyUpdated(req)}
       )
 
-    override def delete(id: ID) =
+    override def delete(req: REQ, id: ID) =
       crudAction.delete(ref.base, id) biMap (
-        error ⇒ DeleteFailed(tableName, id, error) andThen n.notifyUpdateFailure,
-        _     ⇒ Deleted(     tableName, id)        andThen n.notifyUpdated
+        error ⇒ DeleteFailed(tableName, idCell.toStr(id), error) andThen n.notifyUpdateFailure(req),
+        _     ⇒ Deleted(     tableName, idCell.toStr(id))        andThen n.notifyUpdated(req)
       )
 
     override def message(msg: String): PageFormat = Renderer(ref) message msg

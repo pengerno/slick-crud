@@ -69,7 +69,12 @@ object Build extends sbt.Build {
     "com.typesafe.scala-logging" %% "scala-logging"               % "3.1.0"
   )
 
-  lazy val crudAll        = project("all", crudUnfiltered, crudLogging)()
+  lazy val crudChangelog  = project("changelog", crud)(
+    "joda-time" % "joda-time"    % "2.5",
+    "org.joda"  % "joda-convert" % "1.7"
+  )
+
+  lazy val crudAll        = project("all", crudUnfiltered, crudChangelog, crudLogging)()
 
   lazy val crudDemo       = project("demo", crudAll)(
     "net.databinder"              %% "unfiltered-jetty"           % unfilteredVersion,
@@ -80,5 +85,5 @@ object Build extends sbt.Build {
 
   lazy val root = Project(s"$basename-parent", file("."),
     settings = buildSettings :+ (mainClass in (Compile, run) := Some("no.penger.crud.Runner")))
-    .aggregate(crud, crudLogging, crudUnfiltered, crudAll, crudDemo).dependsOn(crudDemo)
+    .aggregate(crud, crudLogging, crudChangelog, crudUnfiltered, crudAll, crudDemo).dependsOn(crudDemo)
 }
