@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 import scala.slick.ast.ScalaBaseType
 import scala.util.{Failure, Success, Try}
 
-trait crudActions extends tableRefs with columnPicker {
+trait crudActions extends tableRefs with columnPicker with dbIntegration {
 
   import profile.simple._
 
@@ -41,8 +41,8 @@ trait crudActions extends tableRefs with columnPicker {
       } yield (oldValueOpt.toString, validValue.toString)
 
     def create[ID, TABLE <: AbstractTable[_]]
-              (ref: BaseTableRef[ID, TABLE],
-               params:     Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
+              (ref:    BaseTableRef[ID, TABLE],
+               params: Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
 
       def doInsert(toInsert: TABLE#TableElementType): Either[Seq[Error], Option[ID]] =
       /* first try and insert and see if we can get an id back */

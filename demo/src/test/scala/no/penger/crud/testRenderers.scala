@@ -11,7 +11,7 @@ trait testRenderers extends renderers {
 
   case class TestView(
     tableName:  TableName,
-    cells:      Seq[(ColumnName, Cell[Any])],
+    cells:      Seq[(ColumnInfo, Cell[Any])],
     content:    Either[(Option[String], Option[Row]), Seq[Row]]){
 
     def id = content.left.map(_._1)
@@ -28,14 +28,17 @@ trait testRenderers extends renderers {
           case ((name, c), value) ⇒ c.toStr(value)
         }.toIndexedSeq
 
-      override def rows[T](rows: Seq[(Option[ID], P)], via: Option[(ColumnName, T)]): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
+      override def message(s: String): Seq[TestView] =
+        Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Left((Some(s), None))))
 
-      override def row[T](idOpt: Option[ID], row: P, via: Option[(ColumnName, T)]): PageFormat =
-        Seq(TestView(ref.base.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(ref.metadata.idCell.toStr)), Some(renderRow(row))))))
+      override def rows[T](mainTable: TableName, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]): Seq[TestView] =
+        Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
-      override def createRow[T](knownColumn: Option[(ColumnName, Option[T])]): PageFormat = Seq.empty
+      override def row[T](mainTable: TableName, idOpt: Option[ID], row: P, via: Option[(ColumnInfo, T)]): Seq[TestView] =
+        Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(ref.metadata.idCell.toStr)), Some(renderRow(row))))))
 
-      override def noRow[T](knownColumn: Option[(ColumnName, Option[T])]) = Seq.empty
+      override def createRow[T](knownColumn: Option[(ColumnInfo, Option[T])]) = Seq.empty
+
+      override def noRow[T](knownColumn: Option[(ColumnInfo, Option[T])]) = Seq.empty
     }
 }

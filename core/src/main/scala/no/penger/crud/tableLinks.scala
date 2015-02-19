@@ -2,7 +2,7 @@ package no.penger.crud
 
 import scala.slick.lifted.CanBeQueryCondition
 
-trait tableLinks extends tableRefs {
+trait tableLinks extends tableRefs with dbIntegration {
   import profile.simple._
 
   sealed trait LinkedTable[ID] {

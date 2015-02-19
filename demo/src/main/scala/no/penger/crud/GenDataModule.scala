@@ -43,7 +43,7 @@ trait GenDataModule extends StoreDomain {
 
     val employees = stores.flatMap { store ⇒
       0 until howMany map { n ⇒
-        Employee(EmployeeId(0), Name(names.next()), Option(store.id).filter(_ ⇒ Random.nextBoolean), randomRole, randomGood)
+        Employee(EmployeeId(0), Name(names.next()), Option(store.id).filter(_ ⇒ Random.nextBoolean()), randomRole, randomGood)
       }
     }
     val products = stores.flatMap { store ⇒
@@ -51,5 +51,6 @@ trait GenDataModule extends StoreDomain {
         Product(ProductId(0), Name("product name"), Random.nextInt(500), store.id)
       }
     }
+    val storeNicknames: Seq[(StoreId, String)] = stores.zipWithIndex.map{case (s, idx) ⇒ (s.id, s.name.value.split("\\s+")(0) + "lly")}.toSeq
   }
 }

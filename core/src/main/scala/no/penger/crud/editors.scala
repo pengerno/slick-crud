@@ -9,7 +9,7 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
 
     override val idCell    = ref.metadata.idCell
     override val mountedAt = ref.base.mounted
-    override val tableName = ref.base.tableName
+    override val tableName = ref.metadata.tableName
 
     override def create(params: Map[ColumnName, String]) =
       crudAction.create(ref.base, params) biMap (
@@ -29,12 +29,14 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
         _     ⇒ Deleted(     tableName, id)        andThen n.notifyUpdated
       )
 
-    override val viewNew = Renderer(ref) createRow None
+    override def message(msg: String): PageFormat = Renderer(ref) message msg
 
+    override val viewNew = Renderer(ref) createRow None
+    
     override def view = crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
       case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow None
       case Nil                        ⇒ Renderer(ref) noRow None
-      case idsRows                    ⇒ Renderer(ref) rows (idsRows, None)
+      case idsRows                    ⇒ Renderer(ref) rows (tableName, idsRows, None)
     }
 
     override def viewRow(id: ID) = {
@@ -42,10 +44,10 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
       crudAction.read(ref.queryById(id)) match {
         case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
         case Nil                        ⇒ Renderer(ref) noRow rowRef
-        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(Some(id), row, rowRef))(
+        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(tableName, Some(id), row, rowRef))(
           (acc, linked) ⇒ combine(acc, linked.lookupAndApply(id, viewLinked))
         )
-        case idsRows                    ⇒ Renderer(ref) rows (idsRows zipMap ref.metadata.extractIdFromRow, rowRef)
+        case idsRows                    ⇒ Renderer(ref) rows (tableName, idsRows zipMap ref.metadata.extractIdFromRow, rowRef)
       }
     }
 
@@ -55,13 +57,13 @@ trait editors extends editorAbstracts with crudActions with renderers with updat
         crudAction.read(ref.query).zipMap(ref.metadata.extractIdFromRow) match {
           case Nil if ref.base.isEditable      ⇒ Renderer(ref.wrapped) createRow Some((ref.filterColumn, None))
           case Nil                             ⇒ Renderer(ref.wrapped) noRow Some((ref.filterColumn, None))
-          case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (oid, row, Some((ref.filterColumn, referenced)))
+          case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (ref.metadata.tableName, oid, row, Some((ref.filterColumn, referenced)))
           case rows                        ⇒
             val (idRows, referees) = rows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
               case ((idRows_, referees_), (id, (referee, row))) ⇒ (idRows_ :+ ((id, row)), referees_ + referee)
             }
 
-            Renderer(ref.wrapped) rows (idRows, Some((ref.filterColumn, referees)))
+            Renderer(ref.wrapped) rows (ref.metadata.tableName, idRows, Some((ref.filterColumn, referees)))
         }
       }
     }

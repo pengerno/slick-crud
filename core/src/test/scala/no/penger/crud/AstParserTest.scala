@@ -2,18 +2,24 @@ package no.penger.crud
 
 import org.scalatest.FunSuite
 
+import scala.slick.ast.ColumnOption
+import scala.slick.driver.JdbcDriver
+
 class AstParserTest
   extends FunSuite
   with astParser
-  with slick.driver.JdbcDriver {
+  with slickIntegration {
 
-  import simple._
+  override val profile = JdbcDriver
+  import profile.simple._
 
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
     assertResult(shouldEqual, q.selectStatement)(op(q))
   }
-
-  def c(c: String) = ColumnName(c)
+  def c(s: String, options: ColumnOption[_]*) = {
+    val parts = s.split("\\.")
+    ColumnInfo(TableName(parts(0)), ColumnName(parts(1)), options)
+  }
 
   class OneTwoThreeT(tag: Tag) extends Table[(Int, Option[Int], Option[Int])](tag, "t") {
     def one   = column[Int]("one")
@@ -33,27 +39,27 @@ class AstParserTest
   }
 
   test("understand simple columns"){
-    myAssert(TableQuery[OneTwoThreeT], Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
+    myAssert(TableQuery[OneTwoThreeT], Seq(c("t.one"), c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
-  test("understand map to one column "){
-    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(c("two")))(AstParser.colNames)
+  test("understand map to one column"){
+    myAssert(TableQuery[OneTwoThreeT].map(_.two), Seq(c("t.two")))(AstParser.colNames)
   }
 
-  test("understand map to two columns "){
-    myAssert(TableQuery[OneTwoThreeT].map(t ⇒ (t.two, t.three)), Seq(c("two"), c("three")))(AstParser.colNames)
+  test("understand map to two columns"){
+    myAssert(TableQuery[OneTwoThreeT].map(t ⇒ (t.two, t.three)), Seq(c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
-  test("understand map / nested projections "){
-    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t ⇒ (t.two, t.three)).map(_._1), Seq(c("two")))(AstParser.colNames)
+  test("understand map / nested projections"){
+    myAssert(TableQuery[OneTwoThreeT].sortBy(_.two).map(t ⇒ (t.two, t.three)).map(_._1), Seq(c("t.two")))(AstParser.colNames)
   }
 
   test("understand case class projection"){
-    myAssert(TableQuery[OneTwoThreeST], Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
+    myAssert(TableQuery[OneTwoThreeST], Seq(c("t.one"), c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
   test("understand query"){
-    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
+    myAssert(TableQuery[OneTwoThreeST].sortBy(_.two.asc), Seq(c("t.one"), c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
   test("understand query with join"){
@@ -62,11 +68,41 @@ class AstParserTest
       def * = one
     }
     myAssert(TableQuery[OneTwoThreeST].join(TableQuery[TT]).on(_.one === _.one).map(_._1),
-             Seq(c("one"), c("two"), c("three")))(AstParser.colNames)
+             Seq(c("t.one"), c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
   test("get tablename"){
     val one = AstParser.tableName(TableQuery[OneTwoThreeT])
     assertResult(TableName("t"))(one)
+  }
+
+  test("join"){
+    class OneT(tag: Tag) extends Table[(String, Option[Int])](tag, "t1") {
+      def one   = column[String]("one")
+      def two   = column[Option[Int]]("two")
+      def *     = (one, two)
+    }
+
+    class TwoT(tag: Tag) extends Table[(String, Option[String])](tag, "t2") {
+      def three = column[String]("three")
+      def four  = column[Option[String]]("four")
+      def *     = (three, four)
+    }
+    val One = TableQuery[OneT]
+    val Two = TableQuery[TwoT]
+    val q1 = One.join(Two).on(_.one === _.three).map{case (one, two) ⇒ (one.one, two.four)}
+    val q2 = Two.join(One).on(_.three === _.one).drop(2).sortBy(_._2.one).map{case (two, one) ⇒ (two.four, one.one)}
+
+    myAssert(q1, Seq(c("t1.one"),  c("t2.four")))(AstParser.colNames)
+    myAssert(q2, Seq(c("t2.four"), c("t1.one")))(AstParser.colNames)
+  }
+
+  test("column options"){
+    class TT(tag: Tag) extends Table[Option[String]](tag, "t") {
+      def one   = column[Option[String]]("one", ColumnOption.PrimaryKey, ColumnOption.Nullable)
+      override def * = one
+    }
+    val T = TableQuery[TT]
+    myAssert(T, Seq(c("t.one", ColumnOption.PrimaryKey, ColumnOption.Nullable)))(AstParser.colNames)
   }
 }
