@@ -72,3 +72,11 @@ table input:focus, textarea:focus {
 input[disabled]{
     cursor: not-allowed;
 }
+
+.status_failed{
+    background-color: #F2B2B2;
+}
+
+.status_ok{
+    background-color: #D7EF64;
+}

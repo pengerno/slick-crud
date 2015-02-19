@@ -49,7 +49,7 @@ no.penger.crud.single = function(url, root){
 
                  var data  = {};
                  data[key] = text;
-                 no.penger.crud.send(url + "/" + id, data, function(){
+                 no.penger.crud.send(elem, url + "/" + id, data, function(){
                      elem.text(old);
                  });
              });
@@ -63,7 +63,7 @@ no.penger.crud.single = function(url, root){
 
                  var data  = {};
                  data[key] = text;
-                 no.penger.crud.send(url + "/" + id, data, function(){
+                 no.penger.crud.send(elem, url + "/" + id, data, function(){
                      elem.text(old);
                  });
              });
@@ -77,7 +77,7 @@ no.penger.crud.single = function(url, root){
             var checked = this.checked;
             var data    = {};
             data[key]   = checked;
-            no.penger.crud.send(url + "/" + id, data, function(){
+            no.penger.crud.send(elem, url + "/" + id, data, function(){
                 self.checked = !checked;
             });
         });
@@ -154,10 +154,10 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = text;
 
-            no.penger.crud.send(path + "/" + id, data, function(){
+            no.penger.crud.send(elem, path + "/" + id, data, function(){
                 elem.text(old);
             });
-        })
+        });
 
         no.penger.crud.makeEditable($(root + ' select'), function(text, old){
             var elem   = $(this);
@@ -167,7 +167,7 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = text;
 
-            no.penger.crud.send(path + "/" + id, data, function(){
+            no.penger.crud.send(elem, path + "/" + id, data, function(){
                 elem.text(old);
             });
         });
@@ -182,7 +182,7 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = checked;
 
-            no.penger.crud.send(path + "/" + id, data, function(){
+            no.penger.crud.send(elem, path + "/" + id, data, function(){
                 self.checked = !checked;
             })
         })
@@ -191,17 +191,29 @@ no.penger.crud.view = function(path, root){
     $(setup)
 };
 
-no.penger.crud.send = function(url, data, undo){
+no.penger.crud.send = function($elem, url, data, undo){
+    $elem.addClass("disabled");
     $.ajax({
         url: url,
         type: 'post',
         data: $.param(data),
         success:function(msg){
+            $elem.removeClass("disabled");
+            $elem.addClass("status_ok");
             console.debug('success' + msg);
+            setTimeout(function() {
+                $elem.removeClass("status_ok");
+            }, 400);
         },
         error:function(error){
+            $elem.removeClass("disabled");
+            $elem.addClass("status_failed");
             alert(error.responseText);
             undo();
+            setTimeout(function() {
+                $elem.removeClass("status_failed");
+            }, 1000);
+
         }
     });
 };
@@ -217,7 +229,6 @@ no.penger.crud.delete = function(url, deleted){
         },
         error:function(error){
             alert(error.responseText);
-            undo();
         }
     });
 };
