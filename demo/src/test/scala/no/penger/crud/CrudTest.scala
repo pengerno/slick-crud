@@ -25,6 +25,9 @@ class CrudTest
     driver = "org.h2.Driver"
   )
 
+  override type REQ = Unit
+  override def userDetails(ignore: Unit) = "test"
+
   /* some tests use this table in this non-projected variant*/
   class ProductTupledT(tag: Tag) extends Table[(ProductId, Name, Int, StoreId)](tag, "products") {
     def id        = column[ProductId]("id", O.PrimaryKey, O.AutoInc)
@@ -50,7 +53,7 @@ class CrudTest
 
   val noop = new UpdateNotifier
   object failOnUpdateFail extends UpdateNotifier {
-    override def notifyUpdateFailure(f: CrudFailure) = {
+    override def notifyUpdateFailure(req: Unit)(f: CrudFailure) = {
       f match {
         case UpdateFailed(_, _, _, _, ErrorExc(t)) => t.printStackTrace()
         case _ ⇒ ()
@@ -60,7 +63,7 @@ class CrudTest
   }
 
   object failOnUpdateSucceed extends UpdateNotifier {
-    override def notifyUpdated(s: CrudSuccess) = super.notifyUpdated(s)
+    override def notifyUpdated(req: Unit)(s: CrudSuccess) = super.notifyUpdated(req)(s)
   }
 
   /* some test data */
@@ -122,7 +125,7 @@ class CrudTest
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.name))), failOnUpdateFail)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
 
-    e.update(pid, ColumnName("name"), n3.value)
+    e.update((), pid, ColumnName("name"), n3.value)
 
     val expected = Left((Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
@@ -133,7 +136,7 @@ class CrudTest
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id).projected(_.map(r ⇒ (r.quantity, r.name))), failOnUpdateFail)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, ColumnName("name"), n3.value)
+    e.update((), pid, ColumnName("name"), n3.value)
 
     val expected = Left((Some(pid.id.toString), Some(Seq(q1.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
@@ -144,7 +147,7 @@ class CrudTest
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id).projected(_.sortBy(_.quantity).map(r ⇒ (r.quantity, r.name))), failOnUpdateFail)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, ColumnName("name"), n3.value)
+    e.update((), pid, ColumnName("name"), n3.value)
 
     val expected = Left((Some(pid.id.toString), Some(Seq(q1.toString, n3.value))))
     assert(e.viewRow(pid).head.content === expected)
@@ -154,7 +157,7 @@ class CrudTest
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id), failOnUpdateFail)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, ColumnName("name"), n3.value)
+    e.update((), pid, ColumnName("name"), n3.value)
 
     val expected = Left((Some(pid.id.toString), Some(Seq(pid.id.toString, n3.value, q1.toString, storeId.value))))
     assert(e.viewRow(pid).head.content === expected)
@@ -164,7 +167,7 @@ class CrudTest
     val e        = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.soldBy))), failOnUpdateSucceed)
     val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
     val colName  = ColumnName("name")
-    val res      = e.update(pid, colName, n3.value)
+    val res      = e.update((), pid, colName, n3.value)
     val expected = Left(UpdateFailed(e.tableName, colName, cellProductId.toStr(pid), n3.value, ErrorMsg("projection has no cell with name name")))
     assert(res === expected)
   }
@@ -176,7 +179,7 @@ class CrudTest
 
     val colName         = ColumnName("name")
     val nonExistingPid  = ProductId(10001)
-    val res             = e.update(nonExistingPid, colName, n3.value)
+    val res             = e.update((), nonExistingPid, colName, n3.value)
 
     assert(true === res.isLeft)
   }
@@ -197,10 +200,10 @@ class CrudTest
 
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
-    val res1 = e.update(sid, colName, "")
+    val res1 = e.update((), sid, colName, "")
     assert(res1 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "")))
 
-    val res2 = e.update(sid, colName, "arne")
+    val res2 = e.update((), sid, colName, "arne")
     assert(res2 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
@@ -220,7 +223,7 @@ class CrudTest
 
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
-    val ret = e.update(sid, colName, "arne")
+    val ret = e.update((), sid, colName, "arne")
     assert(ret === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
@@ -228,7 +231,7 @@ class CrudTest
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(_.name)), failOnUpdateFail)
     val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
 
-    e.update(pid, ColumnName("name"), n3.value)
+    e.update((), pid, ColumnName("name"), n3.value)
 
     val expected = Left((Some(pid.id.toString), Some(Vector(n3.value))))
     assert(e.viewRow(pid).head.content === expected)
@@ -236,7 +239,7 @@ class CrudTest
 
   test("create tupled"){
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id), noop)
-    val ret = e.create(
+    val ret = e.create((),
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
         ColumnName("name")      → n1.value,
@@ -250,7 +253,7 @@ class CrudTest
   test("create class"){
     val quantity = 256
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.sortBy(_.name)))
-    val ret = e.create(
+    val ret = e.create((),
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
         ColumnName("name")      → n1.value,
@@ -270,7 +273,7 @@ class CrudTest
 
   test("create only with all columns specified"){
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id).projected(_.map(r ⇒ (r.name, r.quantity, r.soldByRef))))
-    val ret = e.create(
+    val ret = e.create((),
       Map[ColumnName, String](
         ColumnName("id")        → ignore.id.toString,
         ColumnName("quantity")  → q1.toString,
@@ -283,7 +286,7 @@ class CrudTest
   test("create without auto-increment"){
     val e   = Ed(TableRef(ignoreMounted, Stores)(_.id))
     val sid = "storeId"
-    val ret = e.create(
+    val ret = e.create((),
       Map[ColumnName, String](
         ColumnName("id")          → sid,
         ColumnName("name")        → "my store",
@@ -299,7 +302,7 @@ class CrudTest
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
     assert(e.viewRow(pid1).head.content === Left((Some(cellProductId.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
-    assert(Right(Deleted(e.tableName, cellProductId.toStr(pid1))) === e.delete(pid1))
+    assert(Right(Deleted(e.tableName, cellProductId.toStr(pid1))) === e.delete((), pid1))
     assert(e.viewRow(pid1).isEmpty)
   }
 }

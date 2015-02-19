@@ -11,6 +11,7 @@ It provides the following features:
 - Can mark types and/or tables as read-only
 - Optional/Nullable values
 - Notifications of (failed) updates
+- (Optional) Changelog in a database with all updates (not creates and deletes for now)
 
 slick-crud is available for slick 2.1.0 on scala 2.11.
  

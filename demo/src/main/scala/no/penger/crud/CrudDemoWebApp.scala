@@ -4,6 +4,7 @@ package crud
 import javax.servlet.ServletContext
 
 import com.typesafe.scalalogging.LazyLogging
+import org.joda.time.DateTime
 import unfiltered.filter.Plan
 import unfiltered.response._
 
@@ -47,7 +48,7 @@ trait StoreTables extends StoreDomain with dbIntegration {
   implicit lazy val m3 = MappedColumnType.base[Name,       String](_.value, Name)
   implicit lazy val m4 = MappedColumnType.base[ProductId,  Long]  (  _.id,  ProductId)
   implicit lazy val m5 = MappedColumnType.base[StoreId,    String](_.value, StoreId)
-  implicit lazy val m6 = MappedColumnType.base[Role,       String](_.toString, Role.get)
+  implicit lazy val m6 = MappedColumnType.base[Role,       String](_.name,  Role.get)
 
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id        = column[StoreId]("id")
@@ -127,10 +128,17 @@ object CrudDemoWebApp extends Plan with LazyLogging {
                                                     with CrudUnfiltered
                                                     with StoreCrudInstances
                                                     with GenDataModule
-                                                    with updateNotifierLogging {
+                                                    with updateNotifierLogging
+                                                    with updateNotifierChangelog {
     override lazy val profile = CrudDemoWebApp.profile
     override lazy val db      = CrudDemoWebApp.db
     override      val ctx     = context.getContextPath
+
+    /* what information to store about a user based on the http request */
+    override def userDetails(req: REQ) = (Option(req.underlying.getRemoteUser) :: Option(req.underlying.getRemoteAddr) :: Nil).flatten.mkString("@")
+
+    /* setup notification and saving to changelog */
+    object notifier extends UpdateNotifierLogging with UpdateNotifierChangelog with LazyLogging
 
     /* generate some data to play with */
     db.withTransaction{implicit s ⇒
@@ -138,9 +146,8 @@ object CrudDemoWebApp extends Plan with LazyLogging {
       StoreNickNames insertAll (GenData.storeNicknames :_*)
       Employees      insertAll (GenData.employees      :_*)
       Products       insertAll (GenData.products       :_*)
-    }
 
-    object notifier extends UpdateNotifierLogging with LazyLogging
+    }
 
     val storesRef: BaseTableRef[StoreId, StoreT] =
       TableRef("/stores",    Stores, isEditable = true)(_.id)
@@ -155,7 +162,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
        .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
        .linkedOn(_._2, storesRef)(_.id)(_ === _)
 
-    val storeNickNames: TableRef[StoreId, StoreNickNamesT, StoreNickNamesT, (StoreId, String)] =
+    val storeNickNamesRef: TableRef[StoreId, StoreNickNamesT, StoreNickNamesT, (StoreId, String)] =
       TableRef("/storeNicknames",  StoreNickNames)(_.id)
        .linkedOn(_.id, storesRef)(_.id)(_ === _)
 
@@ -165,13 +172,25 @@ object CrudDemoWebApp extends Plan with LazyLogging {
        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id).map{ case (s, d) ⇒ (s.id, s.name, s.descr, s.closed, d.nickname.?)})
        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
        .linkedOn(_._1, productsRef)(_._2)(_ === _)
-       .linkedOn(_._1, storeNickNames)(_.id)(_ === _)
+       .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
+
+    /* also expose a readonly version of the changelog */
+    val changeLogRef = {
+      db.withTransaction(implicit tx ⇒ notifier.Changelog.ddl.create)
+
+      implicit val cellTableName = SimpleCell[TableName ](_.toString, TableName)
+      implicit val cellColName   = SimpleCell[ColumnName](_.toString, ColumnName)
+      implicit val cellDateTime  = SimpleCell[DateTime  ](_.toString, _ ⇒ ???)
+
+      TableRef("/changelog", notifier.Changelog, isEditable = false)(_.id)
+    }
 
     override val editors = Seq(
-      Editor(employeeRef,  notifier),
-      Editor(productsRef,  notifier),
-      Editor(storesRefRef, notifier),
-      Editor(storeNickNames, notifier)
+      Editor(employeeRef,       notifier),
+      Editor(productsRef,       notifier),
+      Editor(storesRefRef,      notifier),
+      Editor(storeNickNamesRef, notifier),
+      Editor(changeLogRef,      notifier)
     )
 
     override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] =
