@@ -45,9 +45,9 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
       /* create new row */
       case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
         editor.create(req, params) match {
-          case Left(errors)                        ⇒ respondMessage(BadRequest, errors.ts.mkString("\n"))
-          case Right(Created(table, Some(Id(id)))) ⇒ respond(s"created new $table")(editor.viewRow(id))
-          case Right(Created(table, _))            ⇒ respond(s"created new $table")(editor.view)
+          case Left(errors)                           ⇒ respondMessage(BadRequest, errors.ts.mkString("\n"))
+          case Right(Created(_, table, Some(Id(id)))) ⇒ respond(s"created new $table")(editor.viewRow(id))
+          case Right(Created(_, table, _))            ⇒ respond(s"created new $table")(editor.view)
         }
 
       /* show table row*/
@@ -61,7 +61,7 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         editor.delete(req, id) match {
           case Left(failed) ⇒
             respondMessage(BadRequest, failed.toString)
-          case Right(Deleted(table, _)) ⇒
+          case Right(Deleted(_, table, _)) ⇒
             respondMessage(Ok, s"Deleted id $id from $table")
         }
 

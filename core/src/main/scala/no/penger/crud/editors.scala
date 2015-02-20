@@ -13,20 +13,20 @@ trait editors extends editorAbstracts with crudActions with renderers with synta
 
     override def create(req: REQ, params: Map[ColumnName, String]) =
       crudAction.create(ref.base, params) biMap (
-        errors ⇒ CreateFailed(tableName, errors)               andThen n.notifyUpdateFailure(req),
-        id     ⇒ Created(     tableName, id.map(idCell.toStr)) andThen n.notifyUpdated(req)
+        errors ⇒ CreateFailed(mountedAt, tableName, errors)               andThen n.notifyUpdateFailure(req),
+        id     ⇒ Created(     mountedAt, tableName, id.map(idCell.toStr)) andThen n.notifyUpdated(req)
       )
 
     override def update(req: REQ, id: ID, columnName: ColumnName, value: String) =
       crudAction.update(ref, id, columnName, value) biMap (
-        error            ⇒ UpdateFailed(tableName, columnName, idCell.toStr(id), value, error) andThen n.notifyUpdateFailure(req),
-        {case (from, to) ⇒ Updated(     tableName, columnName, idCell.toStr(id), from, to) andThen n.notifyUpdated(req)}
+        error            ⇒ UpdateFailed(mountedAt, tableName, columnName, idCell.toStr(id), value, error) andThen n.notifyUpdateFailure(req),
+        {case (from, to) ⇒ Updated(     mountedAt, tableName, columnName, idCell.toStr(id), from, to) andThen n.notifyUpdated(req)}
       )
 
     override def delete(req: REQ, id: ID) =
       crudAction.delete(ref.base, id) biMap (
-        error ⇒ DeleteFailed(tableName, idCell.toStr(id), error) andThen n.notifyUpdateFailure(req),
-        _     ⇒ Deleted(     tableName, idCell.toStr(id))        andThen n.notifyUpdated(req)
+        error ⇒ DeleteFailed(mountedAt, tableName, idCell.toStr(id), error) andThen n.notifyUpdateFailure(req),
+        _     ⇒ Deleted(     mountedAt, tableName, idCell.toStr(id))        andThen n.notifyUpdated(req)
       )
 
     override def message(msg: String): PageFormat = Renderer(ref) message msg

@@ -13,25 +13,26 @@ trait updateNotifierChangelog extends updateNotifier with dbIntegration {
     implicit val m1 = MappedColumnType.base[ColumnName, String](_.toString, ColumnName)
     implicit val m2 = MappedColumnType.base[DateTime, Timestamp](dt ⇒ new Timestamp(dt.getMillis), ts ⇒ DateTime.now().withMillis(ts.getTime))
 
-    class ChangelogT(t: Tag) extends Table[(Long, TableName, ColumnName, String, Option[String], String, DateTime, String)](t, changelogTableName){
-      def id          = column[Long]      ("id", O.PrimaryKey, O.AutoInc)
-      def table       = column[TableName] ("table")
-      def col         = column[ColumnName]("column")
-      def row         = column[String]    ("row")
-      def from        = column[String]    ("from").?
-      def to          = column[String]    ("to")
-      def timestamp   = column[DateTime]  ("timestamp")
-      def userDetails = column[String]    ("user_details")
+    class ChangelogT(t: Tag) extends Table[(Long, String, TableName, ColumnName, String, Option[String], String, DateTime, String)](t, changelogTableName){
+      def id           = column[Long]      ("id", O.PrimaryKey, O.AutoInc)
+      def table        = column[TableName] ("table_name")
+      def tableMounted = column[String]    ("table_mounted")
+      def col          = column[ColumnName]("column_name")
+      def row          = column[String]    ("row_id")
+      def from         = column[String]    ("from_value").?
+      def to           = column[String]    ("to_value")
+      def timestamp    = column[DateTime]  ("changed_at")
+      def userDetails  = column[String]    ("user_details")
 
-      def * = (id, table, col, row, from, to, timestamp, userDetails)
+      def * = (id, tableMounted, table, col, row, from, to, timestamp, userDetails)
     }
     val Changelog = TableQuery[ChangelogT]
 
     override abstract def notifyUpdated(req: REQ)(s: CrudSuccess) = {
       super.notifyUpdated(req)(s)
       s match {
-        case Updated(t, col, row, from, to) ⇒
-          db.withSession(implicit s ⇒ Changelog.insert((0L, t, col, row, from, to, DateTime.now, userDetails(req))))
+        case Updated(mountedAt, t, col, row, from, to) ⇒
+          db.withSession(implicit s ⇒ Changelog.insert((0L, mountedAt, t, col, row, from, to, DateTime.now, userDetails(req))))
           ()
         case _ ⇒ ()
       }

@@ -55,7 +55,7 @@ class CrudTest
   object failOnUpdateFail extends UpdateNotifier {
     override def notifyUpdateFailure(req: Unit)(f: CrudFailure) = {
       f match {
-        case UpdateFailed(_, _, _, _, ErrorExc(t)) => t.printStackTrace()
+        case UpdateFailed(_, _, _, _, _, ErrorExc(t)) => t.printStackTrace()
         case _ ⇒ ()
       }
       fail(f.toString)
@@ -168,7 +168,7 @@ class CrudTest
     val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
     val colName  = ColumnName("name")
     val res      = e.update((), pid, colName, n3.value)
-    val expected = Left(UpdateFailed(e.tableName, colName, cellProductId.toStr(pid), n3.value, ErrorMsg("projection has no cell with name name")))
+    val expected = Left(UpdateFailed(ignoreMounted, e.tableName, colName, cellProductId.toStr(pid), n3.value, ErrorMsg("projection has no cell with name name")))
     assert(res === expected)
   }
 
@@ -201,10 +201,10 @@ class CrudTest
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
     val res1 = e.update((), sid, colName, "")
-    assert(res1 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "")))
+    assert(res1 === Right(Updated(ignoreMounted, e.tableName, colName, cellStoreId.toStr(sid), Some(""), "")))
 
     val res2 = e.update((), sid, colName, "arne")
-    assert(res2 === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
+    assert(res2 === Right(Updated(ignoreMounted, e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
   test("updating value that didnt exist") {
@@ -224,7 +224,7 @@ class CrudTest
     db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
 
     val ret = e.update((), sid, colName, "arne")
-    assert(ret === Right(Updated(e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
+    assert(ret === Right(Updated(ignoreMounted, e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
   }
 
   test("update when id column not selected"){
@@ -263,9 +263,9 @@ class CrudTest
     )
     /* test that view returns correctly after successful create*/
     ret match {
-      case Left(CreateFailed(_, fs))    ⇒ fail(fs.head)
-      case Right(Created(_, None))      ⇒ fail("no id found")
-      case Right(Created(_, Some(pid))) ⇒
+      case Left(CreateFailed(_, _, fs))    ⇒ fail(fs.head)
+      case Right(Created(_, _, None))      ⇒ fail("no id found")
+      case Right(Created(_, _, Some(pid))) ⇒
         val view = e.viewRow(cellProductId.fromStr(pid).right.get)
         containAssert(shouldContain = true, view, quantity.toString)
     }
@@ -294,7 +294,7 @@ class CrudTest
         ColumnName("closed")      → true.toString
       )
     )
-    assert(Right(Created(e.tableName, Some(sid))) === ret)
+    assert(Right(Created(ignoreMounted, e.tableName, Some(sid))) === ret)
   }
 
   test("delete"){
@@ -302,7 +302,7 @@ class CrudTest
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
     assert(e.viewRow(pid1).head.content === Left((Some(cellProductId.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
-    assert(Right(Deleted(e.tableName, cellProductId.toStr(pid1))) === e.delete((), pid1))
+    assert(Right(Deleted(ignoreMounted, e.tableName, cellProductId.toStr(pid1))) === e.delete((), pid1))
     assert(e.viewRow(pid1).isEmpty)
   }
 }

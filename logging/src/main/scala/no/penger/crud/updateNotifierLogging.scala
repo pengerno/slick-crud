@@ -9,9 +9,9 @@ trait updateNotifierLogging extends updateNotifier {
     override abstract def notifyUpdated(req: REQ)(s: CrudSuccess) = {
       super.notifyUpdated(req)(s)
       s match {
-        case Created(t, id)                 ⇒ logger.info(s"Added row for table $t with id $id")
-        case Updated(t, col, id, from, to)  ⇒ logger.info(s"Updated table $t for column $col for id $id from ${from.fold("empty")(f ⇒ s"«$f»")} to «$to»")
-        case Deleted(t, id)                 ⇒ logger.info(s"Deleted row for table $t with id $id")
+        case Created(_, t, id)                 ⇒ logger.info(s"Added row for table $t with id $id")
+        case Updated(_, t, col, id, from, to)  ⇒ logger.info(s"Updated table $t for column $col for id $id from ${from.fold("empty")(f ⇒ s"«$f»")} to «$to»")
+        case Deleted(_, t, id)                 ⇒ logger.info(s"Deleted row for table $t with id $id")
       }
     }
 
@@ -29,12 +29,12 @@ trait updateNotifierLogging extends updateNotifier {
       }.mkString(", ")
 
       f match {
-        case CreateFailed(t, errors)                ⇒ errors.toList match {
+        case CreateFailed(_, t, errors)                ⇒ errors.toList match {
           case firstError :: Nil ⇒ warn(firstError, s"Failed to create new row for table $t")
           case _                 ⇒ logger.warn(s"Failed to create new row for table $t: ${errorMessages(errors)}")
         }
-        case UpdateFailed(t, id, col, value, error) ⇒ warn(error, s"Failed to update row $id in table $t for column $col and value $value")
-        case DeleteFailed(t, id, error)             ⇒ warn(error, s"Failed to delete row $id in table $t because $error")
+        case UpdateFailed(_, t, id, col, value, error) ⇒ warn(error, s"Failed to update row $id in table $t for column $col and value $value")
+        case DeleteFailed(_, t, id, error)             ⇒ warn(error, s"Failed to delete row $id in table $t because $error")
       }
     }
   }
