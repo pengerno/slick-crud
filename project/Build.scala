@@ -62,6 +62,7 @@ object Build extends sbt.Build {
 
   lazy val crudUnfiltered = project("unfiltered", crud)(
     "net.databinder"              %% "unfiltered-filter"          % unfilteredVersion,
+    "com.jteigen"                 %% "linx"                       % "0.3-penger",
     "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "provided;test"
   )
 

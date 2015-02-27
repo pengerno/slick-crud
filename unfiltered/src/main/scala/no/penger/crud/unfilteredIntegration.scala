@@ -3,11 +3,11 @@ package no.penger.crud
 import javax.servlet.http.HttpServletRequest
 
 import unfiltered.filter.Plan
-import unfiltered.filter.request.ContextPath
 import unfiltered.request._
 import unfiltered.response._
+import unfiltered.util.Of.Int
 
-trait unfilteredIntegration extends Plan with editorAbstracts with extractors with resources {
+trait unfilteredIntegration extends Plan with editorAbstracts with extractors with resources with urls {
 
   override final type REQ = HttpRequest[HttpServletRequest]
 
@@ -19,9 +19,10 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
 
   override final lazy val intent = (editors.map(EditorUnfiltered(_).intent) :+ resourceIntent).reduce(_ orElse _)
 
-  case class EditorUnfiltered[ID](editor: EditorAbstract[ID]) extends Extractors[ID] {
-    val idCell    = editor.idCell
-    val MountedAt = Seg.unapply(editor.mountedAt).get
+  case class EditorUnfiltered[ID](editor: EditorAbstract[ID]) extends Extractors[ID] with EditorUrls {
+
+    override val mountedAt = editor.mountedAt
+    override val idCell    = editor.idCell
 
     /* this exists to silence compiler about inferring Any */
     implicit class AnyResponseFunction(one: ResponseFunction[Any]){
@@ -30,34 +31,40 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
     
     def respondMessage(res: ResponseFunction[Any], msg: String) =
       res ~~> respond(msg)(editor.message(msg))
-    
-    def intent:Plan.Intent = {
-      /* show table */
-      case ContextPath(_, FuzzySeg(MountedAt)) ⇒
-        respond(title = MountedAt.head)(editor.view)
 
-      /* show create new row of table */
-      case GET(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) ⇒
+    def intent:Plan.Intent = {
+      case Path(url.Table()) ⇒
+        Redirect(url.ReadPage("0"))
+
+      case Path(url.Read()) ⇒
+        Redirect(url.ReadPage("0"))
+
+      case Path(url.ReadPage(Int(page))) ⇒
+        respond(title = editor.tableName.toString)(editor.view(page))
+
+      /* show table row*/
+      case Path(url.ReadRow(Id(id))) ⇒
+        respond(title = s"${editor.tableName} for $id") (
+          editor.viewRow(id)
+        )
+
+      /* show form to create new row*/
+      case GET(Path(url.CreateRow())) ⇒
         respond(title = s"new ${editor.tableName}") (
           editor.viewNew
         )
 
       /* create new row */
-      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ "new"))) & ColUpdates(params) ⇒
+      case req@POST(Path(url.CreateRow())) & ColUpdates(params) ⇒
         editor.create(req, params) match {
           case Left(errors)                           ⇒ respondMessage(BadRequest, errors.ts.mkString("\n"))
           case Right(Created(_, table, Some(Id(id)))) ⇒ respond(s"created new $table")(editor.viewRow(id))
-          case Right(Created(_, table, _))            ⇒ respond(s"created new $table")(editor.view)
+          case Right(Created(_, table, _))            ⇒ respond(s"created new $table")(editor.view(0))
         }
 
-      /* show table row*/
-      case GET(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) ⇒
-        respond(title = s"${editor.tableName} for $id") (
-          editor.viewRow(id)
-        )
 
       /* delete row */
-      case req@DELETE(ContextPath(_, FuzzySeg(MountedAt:+ Id(id)))) ⇒
+      case req@DELETE(Path(url.DeleteRow(Id(id)))) ⇒
         editor.delete(req, id) match {
           case Left(failed) ⇒
             respondMessage(BadRequest, failed.toString)
@@ -66,7 +73,7 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
         }
 
       /* update row */
-      case req@POST(ContextPath(_, FuzzySeg(MountedAt :+ Id(id)))) & ColUpdates(updates) ⇒
+      case req@POST(Path(url.UpdateRow(Id(id)))) & ColUpdates(updates) ⇒
         updates.headOption match {
           case Some((columnName, value)) =>
             editor.update(req, id, columnName, value) match {

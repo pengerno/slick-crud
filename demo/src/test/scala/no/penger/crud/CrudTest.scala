@@ -90,7 +90,7 @@ class CrudTest
     val e = Ed(TableRef(ignoreMounted, Products)(_.id))
 
     /* check that view contains both */
-    val view: PageFormat = e.view
+    val view: PageFormat = e.view(0)
     containAssert(shouldContain = true, view, n1.value)
     containAssert(shouldContain = true, view, n2.value)
   }
@@ -118,7 +118,7 @@ class CrudTest
 
   test("work for projection that doesnt include id row"){
     val e = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(p ⇒ (p.quantity, p.name))))
-    assert(e.view.size > 0)
+    assert(e.view(0).size > 0)
   }
 
   test("update (class ⇒ tuple) editor"){

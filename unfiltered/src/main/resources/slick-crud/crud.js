@@ -38,7 +38,7 @@ no.penger.crud.makeEditable = function(editable, onChange){
     })
 };
 
-no.penger.crud.single = function(url, root){
+no.penger.crud.single = function(path, root){
 
     function setup(){
         $(root + ' input[type!=checkbox]').each(function(i, e){
@@ -49,7 +49,7 @@ no.penger.crud.single = function(url, root){
 
                  var data  = {};
                  data[key] = text;
-                 no.penger.crud.send(elem, url + "/" + id, data, function(){
+                 no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                      elem.text(old);
                  });
              });
@@ -63,7 +63,7 @@ no.penger.crud.single = function(url, root){
 
                  var data  = {};
                  data[key] = text;
-                 no.penger.crud.send(elem, url + "/" + id, data, function(){
+                 no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                      elem.text(old);
                  });
              });
@@ -77,18 +77,20 @@ no.penger.crud.single = function(url, root){
             var checked = this.checked;
             var data    = {};
             data[key]   = checked;
-            no.penger.crud.send(elem, url + "/" + id, data, function(){
+            no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                 self.checked = !checked;
             });
         });
 
-        $(root + ' .delete').click(function(){
+        $(root + ' .delete').click(function(e){
+            e.preventDefault();
             var self    = this;
             var elem   = $(this);
             var id     = $(elem.closest('table')).attr('db-id');
             if(confirm("Are you sure?")) {
-                no.penger.crud.delete(url + "/" + id, function () {
-                    window.location = url;
+                no.penger.crud.delete(path + "/delete/" + id, function () {
+                    alert("deleted " + id + " from " + path);
+                    window.location = path;
                 });
             }
         })
@@ -106,7 +108,7 @@ no.penger.crud.neew = function(url, root){
 
         var form = document.createElement("form");
         form.setAttribute("method", "POST");
-        form.setAttribute("action", url + "/new");
+        form.setAttribute("action", url + "/create");
 
         $(root).find('tr').each(function(index) {
             var $self = $(this);
@@ -154,7 +156,7 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = text;
 
-            no.penger.crud.send(elem, path + "/" + id, data, function(){
+            no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                 elem.text(old);
             });
         });
@@ -167,7 +169,7 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = text;
 
-            no.penger.crud.send(elem, path + "/" + id, data, function(){
+            no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                 elem.text(old);
             });
         });
@@ -182,13 +184,17 @@ no.penger.crud.view = function(path, root){
             var data     = {};
             data[column] = checked;
 
-            no.penger.crud.send(elem, path + "/" + id, data, function(){
+            no.penger.crud.send(elem, no.penger.crud.updateUrl(path, id), data, function(){
                 self.checked = !checked;
             })
         })
     }
 
     $(setup)
+};
+
+no.penger.crud.updateUrl = function(path, id) {
+    return path + "/update/" + id;
 };
 
 no.penger.crud.send = function($elem, url, data, undo){

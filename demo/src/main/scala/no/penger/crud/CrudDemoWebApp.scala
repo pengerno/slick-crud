@@ -150,7 +150,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     }
 
     val storesRef: BaseTableRef[StoreId, StoreT] =
-      TableRef("/stores",    Stores, isEditable = true)(_.id)
+      TableRef("/stores", Stores, isEditable = true, pageSize = Some(50))(_.id)
 
     val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
       TableRef("/employees", Employees, isEditable = true)(_.id)
