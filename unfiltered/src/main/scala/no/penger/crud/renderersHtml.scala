@@ -50,14 +50,20 @@ trait renderersHtml extends renderers with renderFormatHtml with urls {
           else                 <input type="checkbox"/>
 
         case c if c.constrainedValues.isDefined ⇒
-          <select>
-            {if (c.isOptional) <option value=""/> else NodeSeq.Empty}
-            {
-            c.constrainedValues.get(cache).map(ensureOptional(c.isOptional)).map {
-              case alt@`value`       => <option selected="selected" value={c.toStr(alt)}>{c.toStr(alt)}</option>
-              case alt               => <option                     value={c.toStr(alt)}>{c.toStr(alt)}</option>
-            }
-            }</select>
+          c.constrainedValues.get(cache) match {
+            case Some(constrainedValuesFound) ⇒
+              <select>
+                {if (c.isOptional) <option value=""/> else NodeSeq.Empty}
+                {
+                constrainedValuesFound.map(ensureOptional(c.isOptional)).map {
+                  case alt@`value`       => <option selected="selected" value={c.toStr(alt)}>{c.toStr(alt)}</option>
+                  case alt               => <option                     value={c.toStr(alt)}>{c.toStr(alt)}</option>
+                }
+                }</select>
+            case None ⇒
+            //render normally
+            <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
+          }
 
         case c => <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
       }

@@ -104,7 +104,7 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
   implicit val cellStoreId    = SimpleCell[StoreId](_.value, StoreId(_).ensuring(_.value.nonEmpty), isEditable = true)
   implicit val cellProductId  = SimpleCell[ProductId](_.id.toString, s ⇒ ProductId(s.toLong))
   implicit val cellEmployeeId = SimpleCell[EmployeeId](_.id.toString, s ⇒ EmployeeId(s.toLong))
-  implicit val cellRole       = ConstrainedCell[Role](SimpleCell[Role](_.name, Role.get), None)(Role.values)
+  implicit val cellRole       = ConstrainedCell[Role](SimpleCell[Role](_.name, Role.get), None)(Some(Role.values))
   /**
    * These cellRow mapping instances are necessary in order to expose
    *  tables that have default projections to non-tuple structures.

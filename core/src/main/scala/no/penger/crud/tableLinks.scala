@@ -5,6 +5,9 @@ import scala.slick.lifted.CanBeQueryCondition
 trait tableLinks extends tableRefs with dbIntegration {
   import profile.simple._
 
+  /* A suitably long number for a dropdown*/
+  val maxNumLinks = 300
+
   sealed trait LinkedTable[ID] {
     def lookupAndApply[T](id: ID, f: LinkedTableF1[T]): T
   }
@@ -37,7 +40,12 @@ trait tableLinks extends tableRefs with dbIntegration {
       }
     }
     private val fkCellWrapper: (Cell[OC]) ⇒ ConstrainedCell[OC] =
-      cell ⇒ ConstrainedCell(cell, Some(to.query.map(toCol).selectStatement))(db.withSession(implicit s ⇒ to.query.map(toCol).list))
+      cell ⇒ ConstrainedCell(cell, Some(to.query.map(toCol).selectStatement))(db.withSession {
+        implicit s ⇒
+          val q = to.query.map(toCol)
+            val num = q.size.run
+            if (num < maxNumLinks) Some(q.list) else None
+      })
 
     override val base               = from.base
     override val metadata           = from.metadata.withFkCell(from.query.map(fromCol), fkCellWrapper)
