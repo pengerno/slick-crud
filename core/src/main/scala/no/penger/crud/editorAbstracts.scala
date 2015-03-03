@@ -8,7 +8,7 @@ trait editorAbstracts extends renderFormat with cells with results with updateNo
     val tableName: TableName
 
     def message(s: String): PageFormat
-    def view: PageFormat
+    def view(page: Int): PageFormat
     def viewNew: PageFormat
     def viewRow(id: ID): PageFormat
 

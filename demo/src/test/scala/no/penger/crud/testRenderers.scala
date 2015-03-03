@@ -31,7 +31,7 @@ trait testRenderers extends renderers {
       override def message(s: String): Seq[TestView] =
         Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Left((Some(s), None))))
 
-      override def rows[T](mainTable: TableName, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]): Seq[TestView] =
+      override def rows[T](mainTable: TableName, isLinked: Boolean, pos: Position, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]): Seq[TestView] =
         Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
       override def row[T](mainTable: TableName, idOpt: Option[ID], row: P, via: Option[(ColumnInfo, T)]): Seq[TestView] =

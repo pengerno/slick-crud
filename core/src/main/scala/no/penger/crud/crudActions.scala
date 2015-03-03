@@ -4,15 +4,26 @@ import scala.language.implicitConversions
 import scala.slick.ast.ScalaBaseType
 import scala.util.{Failure, Success, Try}
 
-trait crudActions extends tableRefs with columnPicker with dbIntegration {
+trait crudActions extends tableRefs with columnPicker with dbIntegration with positions {
 
   import profile.simple._
 
   object crudAction {
+
     import slickHacks._
 
-    def read[E, U](q: Query[E, U, Seq]): List[U] =
-      db withSession (implicit s ⇒ q.list)
+    def read[E, U](q: Query[E, U, Seq], page: Int, pageSizeOpt: Option[Int]): (Position, List[U]) =
+      db withSession {
+        implicit s ⇒
+          pageSizeOpt match {
+            case Some(pageSize) ⇒
+              val total = q.size.run
+              val pos   = PagedPosition(page * pageSize, Math.min((page + 1) * pageSize, total), total, page)
+              val res   = q.list.drop(page * pageSize).take(pageSize)
+              (pos, res)
+            case _ ⇒ (NotPaged, q.list)
+          }
+      }
 
     /**
      * Update a column 'columnName' for row with id 'id' with value 'value'
