@@ -38,7 +38,7 @@ trait renderersHtml extends renderers with renderFormatHtml with urls {
       case ok                         ⇒ ok
     }
 
-    def innerCell(columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup): ElemFormat =
+    def innerCell(columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup, cellIsEnabled: Boolean): ElemFormat =
       anyCell match {
         case PKCell(_) =>
           <a href={url.ReadRow(anyCell.toStr(value))} class="btn-style">
@@ -50,30 +50,34 @@ trait renderersHtml extends renderers with renderFormatHtml with urls {
           else                 <input type="checkbox"/>
 
         case c if c.constrainedValues.isDefined ⇒
-          c.constrainedValues.get(cache) match {
-            case Some(constrainedValuesFound) ⇒
-              <select>
-                {if (c.isOptional) <option value=""/> else NodeSeq.Empty}
-                {
-                constrainedValuesFound.map(ensureOptional(c.isOptional)).map {
-                  case alt@`value`       => <option selected="selected" value={c.toStr(alt)}>{c.toStr(alt)}</option>
-                  case alt               => <option                     value={c.toStr(alt)}>{c.toStr(alt)}</option>
-                }
-                }</select>
-            case None ⇒
-            //render normally
-            <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
-          }
+          if (cellIsEnabled) {
+            c.constrainedValues.get(cache) match {
+              case Some(constrainedValuesFound) ⇒
+                <select>
+                  {if (c.isOptional) <option value=""/> else NodeSeq.Empty}
+                  {
+                  constrainedValuesFound.map(ensureOptional(c.isOptional)).map {
+                    case alt@`value`       => <option selected="selected" value={c.toStr(alt)}>{c.toStr(alt)}</option>
+                    case alt               => <option                     value={c.toStr(alt)}>{c.toStr(alt)}</option>
+                  }
+                  }</select>
+              case None ⇒
+              //render normally
+              <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
+            }
+          } else
+            <select><option selected="selected" value={c.toStr(value)}>{c.toStr(value)}</option></select>
 
         case c => <input type="text" placeholder={c.typeName} value={c.toStr(value)} autocomplete="off"/>
       }
 
-    def cell(mainTable: TableName, columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup, rowHasId: Boolean) =
+    def cell(mainTable: TableName, columnName: ColumnInfo, value: Any, anyCell: Cell[Any], cache: CacheLookup, rowHasId: Boolean) = {
+      val cellIsEnabled = ref.base.isEditable && anyCell.isEditable && rowHasId && mainTable =:= columnName.table
       <td>{
-        innerCell(columnName, value, anyCell, cache)
-          .attachAttrIfNot("disabled", None)(ref.base.isEditable && anyCell.isEditable && rowHasId && mainTable =:= columnName.table)
+        innerCell(columnName, value, anyCell, cache, cellIsEnabled)
+          .attachAttrIfNot("disabled", None)(cellIsEnabled)
         }</td>
-
+    }
     def renderEmptyCell(cell: Cell[Any], valueOpt: Option[String]) = valueOpt match {
       case Some(value) ⇒ <td><input type="text" placeholder={cell.typeName} value={value}/></td>
       case _           ⇒ <td><input type="type" placeholder={cell.typeName}/></td>
