@@ -8,7 +8,7 @@ trait renderers extends tableRefs with renderFormat with positions {
 
   abstract class Renderer[ID, P] {
     def rows[T](mainTable: TableName, isLinked: Boolean, pos: Position, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]): PageFormat
-    def row[T](mainTable: TableName, id: Option[ID], row: P, via: Option[(ColumnInfo, T)]): PageFormat
+    def row[T](mainTable: TableName, id: Option[ID], canDelete: Boolean, row: P, via: Option[(ColumnInfo, T)]): PageFormat
     def createRow[T](via: Option[(ColumnInfo, Option[T])]): PageFormat
     def noRow[T](via: Option[(ColumnInfo, Option[T])]): PageFormat
     def message(s: String): PageFormat

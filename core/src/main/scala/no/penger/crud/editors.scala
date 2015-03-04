@@ -48,7 +48,7 @@ trait editors extends editorAbstracts with crudActions with renderers with synta
       read match {
         case Nil if ref.base.isEditable ⇒ Renderer(ref) createRow rowRef
         case Nil                        ⇒ Renderer(ref) noRow rowRef
-        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(tableName, Some(id), row, rowRef))(
+        case row :: Nil                 ⇒ ref.linked.foldLeft(Renderer(ref) row(tableName, Some(id), ref.base.canDelete, row, rowRef))(
           (acc, linked) ⇒ combine(acc, linked.lookupAndApply(id, viewLinked))
         )
         case idsRows                    ⇒ Renderer(ref) rows (tableName, isLinked = false, pos, idsRows zipMap ref.metadata.extractIdFromRow, rowRef)
@@ -63,7 +63,7 @@ trait editors extends editorAbstracts with crudActions with renderers with synta
         read.zipMap(ref.metadata.extractIdFromRow) match {
           case Nil if ref.base.isEditable      ⇒ Renderer(ref.wrapped) createRow Some((ref.filterColumn, None))
           case Nil                             ⇒ Renderer(ref.wrapped) noRow Some((ref.filterColumn, None))
-          case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (ref.metadata.tableName, oid, row, Some((ref.filterColumn, referenced)))
+          case (oid, (referenced, row)) :: Nil ⇒ Renderer(ref.wrapped) row (ref.metadata.tableName, oid, ref.base.canDelete, row, Some((ref.filterColumn, referenced)))
           case rows                        ⇒
             val (idRows, referees) = rows.foldLeft[(Seq[(Option[OID], OP)], Set[C])]((Seq.empty, Set.empty)){
               case ((idRows_, referees_), (id, (referee, row))) ⇒ (idRows_ :+ ((id, row)), referees_ + referee)

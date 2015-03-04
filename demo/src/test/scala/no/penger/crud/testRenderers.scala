@@ -34,7 +34,7 @@ trait testRenderers extends renderers {
       override def rows[T](mainTable: TableName, isLinked: Boolean, pos: Position, rows: Seq[(Option[ID], P)], via: Option[(ColumnInfo, T)]): Seq[TestView] =
         Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Right(rows.map(r ⇒ renderRow(r._2)))))
 
-      override def row[T](mainTable: TableName, idOpt: Option[ID], row: P, via: Option[(ColumnInfo, T)]): Seq[TestView] =
+      override def row[T](mainTable: TableName, idOpt: Option[ID], canDelete: Boolean, row: P, via: Option[(ColumnInfo, T)]): Seq[TestView] =
         Seq(TestView(ref.metadata.tableName, ref.metadata.cells, Left((Some(idOpt.fold("missing")(ref.metadata.idCell.toStr)), Some(renderRow(row))))))
 
       override def createRow[T](knownColumn: Option[(ColumnInfo, Option[T])]) = Seq.empty

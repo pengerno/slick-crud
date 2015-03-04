@@ -158,7 +158,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
        .linkedOn(_.worksAt, storesRef)(_.id)(_ === _)
 
     val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
-      TableRef("/products",  Products)(_.id)
+      TableRef("/products",  Products, canDelete = true)(_.id)
        .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
        .linkedOn(_._2, storesRef)(_.id)(_ === _)
 
