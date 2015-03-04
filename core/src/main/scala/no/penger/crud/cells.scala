@@ -6,7 +6,7 @@ import scala.util.{Failure, Success, Try}
 trait cells extends booleanLike with errors {
 
   class CacheLookup{
-    val sqlCache = collection.mutable.Map.empty[String, Seq[Any]]
+    val sqlCache = collection.mutable.Map.empty[String, Option[Seq[Any]]]
   }
 
   /**
@@ -18,7 +18,7 @@ trait cells extends booleanLike with errors {
     val typeName:    String
     def toStr(e: E): String
     def fromStr(value: String): Either[Error, E]
-    def constrainedValues: Option[CacheLookup ⇒ Seq[E]]
+    def constrainedValues: Option[CacheLookup ⇒ Option[Seq[E]]]
 
   }
 
@@ -47,17 +47,17 @@ trait cells extends booleanLike with errors {
     override val typeName               = implicitly[ClassTag[E]].runtimeClass.getSimpleName
     override def toStr(b: E)            = asString(b)
     override def fromStr(value: String) = Try(fromString(value)).toEither(t ⇒ errorMsg(s"$value is not a valid boolean"))
-    override def constrainedValues      = Some(_ ⇒ possibleValues)
+    override def constrainedValues      = Some(_ ⇒ Some(possibleValues))
   }
 
-  case class ConstrainedCell[E <: Any](wrapped: Cell[E], selectStatement: Option[String] = None)(_possibleValues: ⇒ Seq[E]) extends Cell[E]{
+  case class ConstrainedCell[E <: Any](wrapped: Cell[E], selectStatement: Option[String] = None)(_possibleValues: ⇒ Option[Seq[E]]) extends Cell[E]{
     override val isEditable             = wrapped.isEditable
     override val isOptional             = wrapped.isOptional
     override val typeName               = s"Enum[${wrapped.typeName}]"
     override def toStr(e: E)            = wrapped.toStr(e)
     override def fromStr(value: String) = wrapped.fromStr(value)
     override def constrainedValues      = Some(
-      (c: CacheLookup) ⇒ c.sqlCache.getOrElseUpdate(selectStatement.fold(typeName)(typeName + _), _possibleValues).asInstanceOf[Seq[E]]
+      (c: CacheLookup) ⇒ c.sqlCache.getOrElseUpdate(selectStatement.fold(typeName)(typeName + _), _possibleValues).asInstanceOf[Option[Seq[E]]]
     )
   }
 
@@ -75,7 +75,9 @@ trait cells extends booleanLike with errors {
     override val isOptional             = true
     override val typeName               = s"Option[${wrapped.typeName}]"
     override def toStr(e: Option[A])    = e map wrapped.toStr getOrElse ""
-    override def constrainedValues      = wrapped.constrainedValues.map(_.andThen(_.map(Option(_))))
+    override def constrainedValues      =
+      wrapped.constrainedValues.map(_.andThen(_.map(_.map(Option(_)))))
+
     override def fromStr(value: String) = Option(value.trim).filterNot(_.isEmpty) match {
       case Some(v) ⇒ wrapped.fromStr(value).right.map(Some(_))
       case None    ⇒ Right(None)
