@@ -18,10 +18,11 @@ trait syntax extends tableLinks with cellInstances {
       (mounted:     String,
        table:       TableQuery[TABLE],
        isEditable:  Boolean = true,
+       canDelete:   Boolean = false,
        pageSize:    Option[Int] = None)
       (idCol:       TABLE ⇒ Column[ID])
       (implicit cr: CellRow[TABLE#TableElementType]) = {
-      BaseTableRef[ID, TABLE](mounted, table, isEditable, pageSize, idCol)
+      BaseTableRef[ID, TABLE](mounted, table, isEditable, canDelete, pageSize, idCol)
     }
   }
 
@@ -45,7 +46,7 @@ trait syntax extends tableLinks with cellInstances {
 
     def linked: List[LinkedTable[ID]] = {
       def linkedInner(r: TableRef[ID, _, _, _]): List[LinkedTable[ID]] = r match {
-        case   BaseTableRef(_, _, _, _, _)              ⇒ Nil
+        case   BaseTableRef(_, _, _, _, _, _)           ⇒ Nil
         case   FilteredTableRef(wrapped, _, _)          ⇒ linkedInner(wrapped)
         case l@ReferencingTableRef(wrapped, _, _, _, _) ⇒ linkedInner(wrapped) :+ l.link
         case   ProjectedTableRef(wrapped, _)            ⇒

@@ -101,12 +101,12 @@ trait renderersHtml extends renderers with renderFormatHtml with urls {
         </div>
     }
 
-    override def row[T](mainTable: TableName, idOpt: Option[ID], row: P, via: Option[(ColumnInfo, T)]) = withId {
+    override def row[T](mainTable: TableName, idOpt: Option[ID], canDelete: Boolean, row: P, via: Option[(ColumnInfo, T)]) = withId {
       uniqueId ⇒
         val cache = new CacheLookup
 
         <table id={uniqueId} db-id={idOpt.fold("missing")(ref.metadata.idCell.toStr)}>
-          {header(via, introWord = None, uidShowSave = None, showDelete = idOpt, showNew = true, showSeeAll = true, positionOpt = None)}
+          {header(via, introWord = None, uidShowSave = None, showDelete = idOpt.filter(_ => canDelete), showNew = true, showSeeAll = true, positionOpt = None)}
           <thead><tr><th>Column</th><th>Value</th></tr></thead>
           {ref.metadata.cellsWithUnpackedValues(row).map{
             case ((name, c), value) ⇒ <tr><td class="columnHeader">{name}</td>{cell(mainTable, name, value, c, cache, idOpt.isDefined)}</tr>

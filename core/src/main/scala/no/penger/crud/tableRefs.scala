@@ -26,6 +26,7 @@ trait tableRefs extends tableMetadata with slickIntegration {
                          (mounted:    String,
                           query:      TableQuery[P],
                           isEditable: Boolean,
+                          canDelete:  Boolean,
                           pageSize:   Option[Int],
                           idCol:      P ⇒ Column[ID])
                          (implicit cr: CellRow[P#TableElementType]) extends TableRef[ID, P, P, P#TableElementType]{

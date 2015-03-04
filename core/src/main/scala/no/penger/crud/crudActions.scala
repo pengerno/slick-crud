@@ -73,7 +73,10 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
 
     def delete[ID, TABLE <: AbstractTable[_]]
               (ref: BaseTableRef[ID, TABLE], id: ID): Either[Error, Unit] =
-      db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(ref.queryById(id).delete)))
+      if (ref.base.canDelete) {
+        db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(ref.queryById(id).delete)))
+      } else
+        Left(errorMsg("Can not delete"))
 
     private def ensureOneRowChanged(tn: Try[Int])(implicit s: Session) = tn match {
       case Success(1)   ⇒ Right(())
