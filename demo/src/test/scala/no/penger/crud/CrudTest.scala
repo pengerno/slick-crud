@@ -298,11 +298,19 @@ class CrudTest
   }
 
   test("delete"){
-    val e    = Ed(TableRef(ignoreMounted, Products)(_.id))
+    val e    = Ed(TableRef(ignoreMounted, Products, canDelete = true)(_.id))
     val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
 
     assert(e.viewRow(pid1).head.content === Left((Some(cellProductId.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
     assert(Right(Deleted(ignoreMounted, e.tableName, cellProductId.toStr(pid1))) === e.delete((), pid1))
     assert(e.viewRow(pid1).isEmpty)
+  }
+
+  test("delete not allowed"){
+    val e    = Ed(TableRef(ignoreMounted, Products)(_.id))
+    val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
+
+    assert(Left(DeleteFailed(ignoreMounted, e.tableName, cellProductId.toStr(pid1), errorMsg("Can not delete"))) === e.delete((), pid1))
+    assert(e.viewRow(pid1).nonEmpty)
   }
 }
