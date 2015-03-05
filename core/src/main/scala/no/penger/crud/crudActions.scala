@@ -19,7 +19,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
             case Some(pageSize) ⇒
               val total = q.size.run
               val pos   = PagedPosition(page * pageSize, Math.min((page + 1) * pageSize, total), total, page)
-              val res   = q.list.drop(page * pageSize).take(pageSize)
+              val res   = q.drop(page * pageSize).take(pageSize).list
               (pos, res)
             case _ ⇒ (NotPaged, q.list)
           }
