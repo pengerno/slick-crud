@@ -25,12 +25,13 @@ trait tableLinks extends tableRefs with dbIntegration {
                                  OID, OTABLE <: AbstractTable[_], OLP, OP, OC, R](
                                   from:    TableRef[ID, TABLE, LP, P],
                                   fromCol: LP ⇒ Column[C],
-                                  to:      TableRef[OID, OTABLE, OLP, OP],
                                   toCol:   OLP ⇒ Column[OC],
                                   pred:   (Column[C], Column[OC]) ⇒ Column[R])
+                                 (_to:      ⇒ TableRef[OID, OTABLE, OLP, OP])
                                  (implicit ev: CanBeQueryCondition[Column[R]]) extends TableRef[ID, TABLE, LP, P] {
+    lazy val to = _to
 
-    val link: LinkedTable[ID] = new LinkedTable[ID]{
+    lazy val link: LinkedTable[ID] = new LinkedTable[ID]{
       /* f(select OP from 'to' where fromCol(from) is toCol(to)) */
       override def lookupAndApply[T](id: ID, f: LinkedTableF1[T]) = {
         val filteredQ: Query[OLP, OP, Seq] ⇒ Query[(Column[C], OLP), (C, OP), Seq] =
@@ -39,7 +40,7 @@ trait tableLinks extends tableRefs with dbIntegration {
         f(FilteredTableRef[OID, OTABLE, OLP, OP, OC, C](to, filteredQ, toCol))
       }
     }
-    private val fkCellWrapper: (Cell[OC]) ⇒ ConstrainedCell[OC] =
+    private lazy val fkCellWrapper: (Cell[OC]) ⇒ ConstrainedCell[OC] =
       cell ⇒ ConstrainedCell(cell, Some(to.query.map(toCol).selectStatement))(db.withSession {
         implicit s ⇒
           val q = to.query.map(toCol)

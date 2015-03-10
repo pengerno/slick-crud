@@ -38,17 +38,17 @@ trait syntax extends tableLinks with cellInstances {
      */
     def linkedOn[OID, OTABLE <: AbstractTable[_], OLP, OP, C: Cell, OC, R]
       (fromCol: LP ⇒ Column[C],
-       other:   TableRef[OID, OTABLE, OLP, OP])
+       other:   ⇒ TableRef[OID, OTABLE, OLP, OP])
       (toCol: OLP ⇒ Column[OC])
       (pred: (Column[C], Column[OC]) ⇒ Column[R])
       (implicit ev: CanBeQueryCondition[Column[R]]): TableRef[ID, TABLE, LP, P] =
-      ReferencingTableRef[ID, TABLE, LP, P, C, OID, OTABLE, OLP, OP, OC, R](ref, fromCol, other, toCol, pred)
+      ReferencingTableRef[ID, TABLE, LP, P, C, OID, OTABLE, OLP, OP, OC, R](ref, fromCol, toCol, pred)(other)
 
     def linked: List[LinkedTable[ID]] = {
       def linkedInner(r: TableRef[ID, _, _, _]): List[LinkedTable[ID]] = r match {
         case   BaseTableRef(_, _, _, _, _, _)           ⇒ Nil
         case   FilteredTableRef(wrapped, _, _)          ⇒ linkedInner(wrapped)
-        case l@ReferencingTableRef(wrapped, _, _, _, _) ⇒ linkedInner(wrapped) :+ l.link
+        case l@ReferencingTableRef(wrapped, _, _, _)    ⇒ linkedInner(wrapped) :+ l.link
         case   ProjectedTableRef(wrapped, _)            ⇒
           val res: List[LinkedTable[ID]] = linkedInner(wrapped)
           if (res.isEmpty) Nil else sys.error("Use linkedOn() after projected()")

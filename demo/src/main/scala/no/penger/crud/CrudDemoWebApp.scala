@@ -149,30 +149,27 @@ object CrudDemoWebApp extends Plan with LazyLogging {
 
     }
 
-    val storesRef: BaseTableRef[StoreId, StoreT] =
+    lazy val storesRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
       TableRef("/stores", Stores, isEditable = true, pageSize = Some(50))(_.id)
+        .projected(_.sortBy(_.name))
+        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id).map{ case (s, d) ⇒ (s.id, s.name, s.descr, s.closed, d.nickname.?)})
+        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
+        .linkedOn(_._1, productsRef)(_._2)(_ === _)
+        .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
 
-    val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
+    lazy val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
       TableRef("/employees", Employees, isEditable = true)(_.id)
        .projected(_.sortBy(_.name.asc))
-       .linkedOn(_.worksAt, storesRef)(_.id)(_ === _)
+       .linkedOn(_.worksAt, storesRef)(_._1)(_ === _)
 
-    val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
+    lazy val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
       TableRef("/products",  Products, canDelete = true)(_.id)
        .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
-       .linkedOn(_._2, storesRef)(_.id)(_ === _)
+       .linkedOn(_._2, storesRef)(_._1)(_ === _)
 
-    val storeNickNamesRef: TableRef[StoreId, StoreNickNamesT, StoreNickNamesT, (StoreId, String)] =
+    lazy val storeNickNamesRef: TableRef[StoreId, StoreNickNamesT, StoreNickNamesT, (StoreId, String)] =
       TableRef("/storeNicknames",  StoreNickNames)(_.id)
-       .linkedOn(_.id, storesRef)(_.id)(_ === _)
-
-    val storesRefRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
-      storesRef
-       .projected(_.sortBy(_.name))
-       .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id).map{ case (s, d) ⇒ (s.id, s.name, s.descr, s.closed, d.nickname.?)})
-       .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
-       .linkedOn(_._1, productsRef)(_._2)(_ === _)
-       .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
+       .linkedOn(_.id, storesRef)(_._1)(_ === _)
 
     /* also expose a readonly version of the changelog */
     val changeLogRef = {
@@ -188,7 +185,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     override val editors = Seq(
       Editor(employeeRef,       notifier),
       Editor(productsRef,       notifier),
-      Editor(storesRefRef,      notifier),
+      Editor(storesRef,         notifier),
       Editor(storeNickNamesRef, notifier),
       Editor(changeLogRef,      notifier)
     )
