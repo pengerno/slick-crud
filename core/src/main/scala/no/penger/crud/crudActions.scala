@@ -1,7 +1,7 @@
 package no.penger.crud
 
 import scala.language.implicitConversions
-import scala.slick.ast.ScalaBaseType
+import slick.ast.BaseTypedType
 import scala.util.{Failure, Success, Try}
 
 trait crudActions extends tableRefs with columnPicker with dbIntegration with positions {
@@ -9,7 +9,6 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
   import profile.simple._
 
   object crudAction {
-
     import slickHacks._
 
     def read[E, U](q: Query[E, U, Seq], page: Int, pageSizeOpt: Option[Int]): (Position, List[U]) =
@@ -34,7 +33,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
      *
      *  @return old value of cell on success, error otherwise
      */
-    def update[ID, TABLE <: AbstractTable[_], LP, P]
+    def update[ID: FlatRepShape, TABLE <: AbstractTable[_], LP, P]
               (ref:        TableRef[ID, TABLE, LP, P],
                id:         ID,
                columnName: ColumnName,
@@ -51,7 +50,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt map cell.toStr, value)
 
-    def create[ID, TABLE <: AbstractTable[_]]
+    def create[ID: FlatRepShape, TABLE <: AbstractTable[_]]
               (ref:    BaseTableRef[ID, TABLE],
                params: Map[ColumnName, String]): Either[Seq[Error], Option[ID]] = {
 
@@ -92,18 +91,17 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
     implicit def queryToDeleteInvoker(q: profile.simple.Query[_ <: AbstractTable[_], _, Seq]): profile.DeleteInvoker =
       profile.createDeleteInvoker(profile.deleteCompiler.run(q.toNode).tree, ())
 
-    /* to be able to use Column[Any].? */
-    private implicit val evidence: ScalaBaseType[Any] = null
+    /* enable Rep[Any] - we have to guarantee on the outside that what we do is sane */
+    implicit val anyEvidence: BaseTypedType[Any] = null
 
     /* this is needed to hack around a case where a column is declared as column[T], but used in
      *   the table projection as a column[Option[T]]
      */
-    def ensureOptionalColumn(value: Any)(c: Column[Any]) =
+    def ensureOptionalColumn(value: Any)(c: Rep[Any]) =
       (value, c.toNode) match {
         case (v: Option[_], slick.ast.OptionApply(_)) => c
-        case (v: Option[_], _                       ) => c.?.asInstanceOf[Column[Any]]
+        case (v: Option[_], _                       ) => c.?.asInstanceOf[Rep[Any]]
         case _                                        => c
       }
-
   }
 }

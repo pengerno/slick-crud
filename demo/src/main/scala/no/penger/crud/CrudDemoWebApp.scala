@@ -7,8 +7,7 @@ import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.response._
 
-import scala.slick.ast.JoinType
-import scala.slick.driver.H2Driver
+import slick.driver.H2Driver
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -86,10 +85,10 @@ trait StoreTables extends StoreDomain with dbIntegration {
 
   db.withTransaction{
     implicit tx ⇒
-      Stores.ddl.create
-      StoreNickNames.ddl.create
-      Products.ddl.create
-      Employees.ddl.create
+      Stores.schema.create
+      StoreNickNames.schema.create
+      Products.schema.create
+      Employees.schema.create
   }
 }
 
@@ -155,15 +154,15 @@ object CrudDemoWebApp extends Plan with LazyLogging {
                         // It's not neccessary to explicitly tag types,
                         // but it makes IDEs behave better if you have
                         // many inter-linked tables
-    lazy val storesRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
+    lazy val storesRef: TableRef[StoreId, StoreT, (Rep[StoreId], Rep[Name], Rep[Option[Desc]], Rep[Boolean], Rep[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
       TableRef("/stores", Stores, isEditable = true, pageSize = Some(50))(_.id)
         //sort the table by name when we display it
         .projected(_.sortBy(_.name))
         // include a column from another table when we display. This will not
         // affect creating new rows, and the linked columns will not be editable
-        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id)
+        .projected(_.joinLeft(StoreNickNames).on(_.id === _.id)
                     .map{ case (s, d) ⇒
-                          (s.id, s.name, s.descr, s.closed, d.nickname.?)
+                          (s.id, s.name, s.descr, s.closed, d.map(_.nickname))
                         }
                   )
         //bind to another table on this tables' storeId
@@ -176,7 +175,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
        .projected(_.sortBy(_.name.asc))
        .linkedOn(_.worksAt, storesRef)(_._1)(_ === _)
 
-    lazy val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
+    lazy val productsRef: TableRef[ProductId, ProductT, (Rep[ProductId], Rep[StoreId], Rep[Int], Rep[Name]), (ProductId, StoreId, Int, Name)] =
       TableRef("/products",  Products, canDelete = true)(_.id)
        .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
        .linkedOn(_._2, storesRef)(_._1)(_ === _)
@@ -187,7 +186,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
 
     /* also expose a readonly version of the changelog */
     val changeLogRef = {
-      db.withTransaction(implicit tx ⇒ notifier.Changelog.ddl.create)
+      db.withTransaction(implicit tx ⇒ notifier.Changelog.schema.create)
 
       implicit val cellTableName = SimpleCell[TableName ](_.toString, TableName)
       implicit val cellColName   = SimpleCell[ColumnName](_.toString, ColumnName)

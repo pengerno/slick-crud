@@ -3,7 +3,7 @@ package crud
 
 trait editors extends editorAbstracts with crudActions with renderers with syntax {
 
-  case class Editor[ID, TABLE <: AbstractTable[_], LP, P]
+  case class Editor[ID: FlatRepShape, TABLE <: AbstractTable[_], LP, P]
                    (ref: TableRef[ID, TABLE, LP, P],
                     n:   UpdateNotifier) extends EditorAbstract[ID]{
 
