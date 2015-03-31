@@ -10,9 +10,9 @@ trait tableRefs extends tableMetadata with slickIntegration {
    *   the whole codebase. Sometimes you will find Q(L)P or O(L)P, in which case
    *   they refer to a query or reference to another table, respectively.
    *
-   * @tparam ID the primary key column, for example Column[Int]
+   * @tparam ID the primary key column, for example Rep[Int]
    * @tparam TABLE row type for a database reference, ie. the class of the table definition
-   * @tparam LP the lifted projection, for example (Column[Int], Column[String])
+   * @tparam LP the lifted projection, for example (Rep[Int], Rep[String])
    * @tparam P the projection, for example (Int, String)
    */
   abstract class TableRef[ID, TABLE <: AbstractTable[_], LP, P]{
@@ -22,14 +22,15 @@ trait tableRefs extends tableMetadata with slickIntegration {
     def queryById(id: ID): Query[LP, P, Seq]
   }
 
-  case class BaseTableRef[ID: ColumnType: Cell, P <: AbstractTable[_]]
+  case class BaseTableRef[ID: Cell: BaseColumnType, P <: AbstractTable[_]]
                          (mounted:    String,
                           query:      TableQuery[P],
                           isEditable: Boolean,
                           canDelete:  Boolean,
                           pageSize:   Option[Int],
-                          idCol:      P ⇒ Column[ID])
+                          idCol:      P ⇒ Rep[ID])
                          (implicit cr: CellRow[P#TableElementType]) extends TableRef[ID, P, P, P#TableElementType]{
+
     override val metadata          = Metadata.infer(TableName(query.baseTableRow.tableName), query, idCol)
     override val base              = this
     override def queryById(id: ID) = query.filter(row ⇒ idCol(row) === id)
@@ -45,10 +46,10 @@ trait tableRefs extends tableMetadata with slickIntegration {
     override val metadata           = Metadata.derive(query, wrapped.metadata)
   }
 
-  case class FilteredTableRef[ID, TABLE <: AbstractTable[_], LP, P, C, OC: Cell]
+  case class FilteredTableRef[ID, TABLE <: AbstractTable[_], LP, P, C: FlatRepShape, OC: Cell: FlatRepShape]
                              (wrapped:   TableRef[ID, TABLE, LP, P],
-                              filterQ:   Query[LP, P, Seq] ⇒ Query[(Column[OC], LP), (OC, P), Seq],
-                              columnFor: LP ⇒ Column[C]) extends TableRef[ID, TABLE, (Column[OC], LP), (OC, P)]{
+                              filterQ:   Query[LP, P, Seq] ⇒ Query[(Rep[OC], LP), (OC, P), Seq],
+                              columnFor: LP ⇒ Rep[C]) extends TableRef[ID, TABLE, (Rep[OC], LP), (OC, P)]{
 
     val filterColumn                = AstParser.colNames(wrapped.query.map(columnFor)).head
     override val base               = wrapped.base

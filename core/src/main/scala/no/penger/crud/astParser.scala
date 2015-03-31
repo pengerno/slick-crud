@@ -63,6 +63,8 @@ trait astParser extends errors {
             case s: Select                               ⇒ Some(s)
             /* optional column */
             case OptionApply(s: Select)                  ⇒ Some(s)
+            /* optional columns as used with joins */
+            case OptionFold(from, _, SingleSelect(s), _) ⇒ Some(s)
             /* nested (set of) column(s) */
             case TypeMapping(s: Select, _, _)            ⇒ Some(s)
           }

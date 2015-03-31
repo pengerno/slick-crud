@@ -1,6 +1,6 @@
 package no.penger.crud
 
-import scala.slick.lifted.CanBeQueryCondition
+import slick.lifted.CanBeQueryCondition
 
 trait syntax extends tableLinks with cellInstances {
   import profile.simple._
@@ -20,13 +20,13 @@ trait syntax extends tableLinks with cellInstances {
        isEditable:  Boolean = true,
        canDelete:   Boolean = false,
        pageSize:    Option[Int] = None)
-      (idCol:       TABLE ⇒ Column[ID])
+      (idCol:       TABLE ⇒ Rep[ID])
       (implicit cr: CellRow[TABLE#TableElementType]) = {
       BaseTableRef[ID, TABLE](mounted, table, isEditable, canDelete, pageSize, idCol)
     }
   }
 
-  implicit class TableRefOps[ID, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]){
+  implicit class TableRefOps[ID: FlatRepShape, TABLE <: AbstractTable[_], LP, P](ref: TableRef[ID, TABLE, LP, P]){
 
     def projected[QLP, QP](q: Query[LP, P, Seq] ⇒ Query[QLP, QP, Seq])
                           (implicit cr: CellRow[QP]): TableRef[ID, TABLE, QLP, QP] =
@@ -36,12 +36,12 @@ trait syntax extends tableLinks with cellInstances {
      * Combine this editor with another database table referenced by 'other' on
      *  where 'columnFrom' of a given database row matches 'other's' 'columnQuery'
      */
-    def linkedOn[OID, OTABLE <: AbstractTable[_], OLP, OP, C: Cell, OC, R]
-      (fromCol: LP ⇒ Column[C],
+    def linkedOn[OID, OTABLE <: AbstractTable[_], OLP, OP, C: Cell: FlatRepShape, OC: FlatRepShape, R]
+      (fromCol: LP ⇒ Rep[C],
        other:   ⇒ TableRef[OID, OTABLE, OLP, OP])
-      (toCol: OLP ⇒ Column[OC])
-      (pred: (Column[C], Column[OC]) ⇒ Column[R])
-      (implicit ev: CanBeQueryCondition[Column[R]]): TableRef[ID, TABLE, LP, P] =
+      (toCol: OLP ⇒ Rep[OC])
+      (pred: (Rep[C], Rep[OC]) ⇒ Rep[R])
+      (implicit ev: CanBeQueryCondition[Rep[R]]): TableRef[ID, TABLE, LP, P] =
       ReferencingTableRef[ID, TABLE, LP, P, C, OID, OTABLE, OLP, OP, OC, R](ref, fromCol, toCol, pred)(other)
 
     def linked: List[LinkedTable[ID]] = {

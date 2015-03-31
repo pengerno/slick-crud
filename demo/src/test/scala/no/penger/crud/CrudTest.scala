@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.FunSuite
 
-import scala.slick.driver.H2Driver
+import slick.driver.H2Driver
 
 /**
 * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -182,6 +182,20 @@ class CrudTest
     val res             = e.update((), nonExistingPid, colName, n3.value)
 
     assert(true === res.isLeft)
+  }
+
+  test("update joined table") {
+    val products = TableRef(ignoreMounted, Products)(_.id).projected(_.joinLeft(Stores).on(_.soldBy === _.id).map{
+      case (p, sOpt) => (p.id, p.name, p.quantity, sOpt.map(_.name))
+    })
+    val e   = Ed(products, failOnUpdateFail)
+
+    val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
+
+    val colName         = ColumnName("name")
+    val res             = e.update((), pid, colName, n3.value)
+
+    assert(res === Right(Updated(ignoreMounted, e.tableName, colName, pid.id.toString, Some(n2.value), n3.value)))
   }
 
   test("option-mapping in table projection") {

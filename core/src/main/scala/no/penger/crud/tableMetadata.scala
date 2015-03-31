@@ -1,18 +1,18 @@
 package no.penger.crud
 
-import scala.slick.lifted.{Column, Query}
+trait tableMetadata extends cells with astParser with slickIntegration {
 
-trait tableMetadata extends cells with astParser {
+  import profile.simple._
+
   object Metadata {
 
-    def infer[ID, TABLE, P](tableName: TableName,
+    def infer[ID: FlatRepShape: Cell, TABLE, P](tableName: TableName,
                             q:         Query[TABLE, P, Seq],
-                            idCol:     TABLE ⇒ Column[ID])
-                  (implicit cr:        CellRow[P],
-                            icd:       Cell[ID]): Metadata[ID, P] = {
+                            idCol:     TABLE ⇒ Rep[ID])
+                  (implicit cr:        CellRow[P]): Metadata[ID, P] = {
       val idQuery = q.map(idCol)
       val IdName  = AstParser.colNames(idQuery).head
-      val idCell  = PKCell(icd)
+      val idCell  = PKCell(implicitly[Cell[ID]])
 
       /* inject idCell in cell list */
       val cells = cellsWithColumnNames(q) map {
@@ -34,11 +34,15 @@ trait tableMetadata extends cells with astParser {
           }
       }
 
+      if (cells.length != cr.cells.length){
+        throw new RuntimeException(s"Internal error while initializing slick-crud: Couldn't understand query: Only found columns $cells")
+      }
+
       Metadata(origin.tableName, cr.unpackValues, cr.packValues, cells, origin.idCell, origin.idColName)
     }
 
     def withReferencingRow[ID, LP, P, C: Cell]
-                          (q: Query[(Column[C], LP), (C, P), Seq],
+                          (q: Query[(Rep[C], LP), (C, P), Seq],
                            origin: Metadata[ID, P]): Metadata[ID, (C, P)] = {
 
       def unpackValues(cp: (C, P)) = cp._1 +: origin.unpackValues(cp._2)
@@ -82,7 +86,7 @@ trait tableMetadata extends cells with astParser {
           case (colInfo, cell) ⇒
             params get colInfo.name match {
               case Some(paramValue) ⇒ cell fromStr paramValue
-              case _                ⇒ Left(errorMsg(s"Didn't provide value for ${colInfo}"))
+              case _                ⇒ Left(errorMsg(s"Didn't provide value for $colInfo"))
             }
         }
       }.right.map(packValues)
