@@ -2,8 +2,8 @@ package no.penger.crud
 
 import org.scalatest.FunSuite
 
-import scala.slick.ast.ColumnOption
-import scala.slick.driver.JdbcDriver
+import slick.ast.ColumnOption
+import slick.driver.JdbcDriver
 
 class AstParserTest
   extends FunSuite
@@ -71,12 +71,7 @@ class AstParserTest
              Seq(c("t.one"), c("t.two"), c("t.three")))(AstParser.colNames)
   }
 
-  test("get tablename"){
-    val one = AstParser.tableName(TableQuery[OneTwoThreeT])
-    assertResult(TableName("t"))(one)
-  }
-
-  test("join"){
+  test("join 2x"){
     class OneT(tag: Tag) extends Table[(String, Option[Int])](tag, "t1") {
       def one   = column[String]("one")
       def two   = column[Option[Int]]("two")
@@ -97,12 +92,91 @@ class AstParserTest
     myAssert(q2, Seq(c("t2.four"), c("t1.one")))(AstParser.colNames)
   }
 
+  test("join 3x"){
+    class OneT(tag: Tag) extends Table[(String, Option[Int])](tag, "t1") {
+      def one   = column[String]("one")
+      def two   = column[Option[Int]]("two")
+      def *     = (one, two)
+    }
+
+    class TwoT(tag: Tag) extends Table[(String, Option[String])](tag, "t2") {
+      def three = column[String]("three")
+      def four  = column[Option[String]]("four")
+      def *     = (three, four)
+    }
+
+    class ThreeT(tag: Tag) extends Table[(String, Option[String])](tag, "t3") {
+      def five = column[String]("five")
+      def six  = column[Option[String]]("six")
+      def *     = (five, six)
+    }
+    val One   = TableQuery[OneT]
+    val Two   = TableQuery[TwoT]
+    val Three = TableQuery[ThreeT]
+
+    val q1 = One.join(Two).on(_.one === _.three).join(Three).on(_._1.one === _.five).map{
+      case ((one, two), three) ⇒ (one.one, two.four, three.six)
+    }
+
+    myAssert(q1, Seq(c("t1.one"),  c("t2.four"), c("t3.six")))(AstParser.colNames)
+  }
+
+  test("join 3x full"){
+    class OneT(tag: Tag) extends Table[(String, Option[Int])](tag, "t1") {
+      def one   = column[String]("one")
+      def two   = column[Option[Int]]("two")
+      def *     = (one, two)
+    }
+
+    class TwoT(tag: Tag) extends Table[(String, Option[String])](tag, "t2") {
+      def three = column[String]("three")
+      def four  = column[Option[String]]("four")
+      def *     = (three, four)
+    }
+
+    class ThreeT(tag: Tag) extends Table[(String, Option[String])](tag, "t3") {
+      def five = column[String]("five")
+      def six  = column[Option[String]]("six")
+      def *     = (five, six)
+    }
+    val One   = TableQuery[OneT]
+    val Two   = TableQuery[TwoT]
+    val Three = TableQuery[ThreeT]
+
+    val q1 = One.joinFull(Two).on(_.one === _.three).joinRight(Three.sortBy(_.five)).on(_._1.map(_.one) === _.five).map{
+      case (onetwo, three) ⇒ (onetwo.flatMap(_._1.map(_.one)), onetwo.flatMap(_._2.map(_.four)), three.six)
+    }
+
+    myAssert(q1, Seq(c("t1.one"),  c("t2.four"), c("t3.six")))(AstParser.colNames)
+  }
+
+  test("joinLeft"){
+    class OneT(tag: Tag) extends Table[(String, Option[Int])](tag, "t1") {
+      def one   = column[String]("one")
+      def two   = column[Option[Int]]("two")
+      def *     = (one, two)
+    }
+
+    class TwoT(tag: Tag) extends Table[(String, Option[String])](tag, "t2") {
+      def three = column[String]("three")
+      def four  = column[Option[String]]("four")
+      def *     = (three, four)
+    }
+    val One = TableQuery[OneT]
+    val Two = TableQuery[TwoT]
+    val q1 = One.joinLeft(Two).on(_.one === _.three).map{case (one, two) ⇒ (one.one, two.map(_.four))}
+    val q2 = Two.joinLeft(One).on(_.three === _.one).drop(2).sortBy(_._2.map(_.one).asc).map{case (two, one) ⇒ (two.four, one.map(_.one))}
+
+    myAssert(q1, Seq(c("t1.one"),  c("t2.four")))(AstParser.colNames)
+    myAssert(q2, Seq(c("t2.four"), c("t1.one")))(AstParser.colNames)
+  }
+
   test("column options"){
     class TT(tag: Tag) extends Table[Option[String]](tag, "t") {
-      def one   = column[Option[String]]("one", ColumnOption.PrimaryKey, ColumnOption.Nullable)
+      def one   = column[Option[String]]("one", ColumnOption.PrimaryKey)
       override def * = one
     }
     val T = TableQuery[TT]
-    myAssert(T, Seq(c("t.one", ColumnOption.PrimaryKey, ColumnOption.Nullable)))(AstParser.colNames)
+    myAssert(T, Seq(c("t.one", ColumnOption.PrimaryKey)))(AstParser.colNames)
   }
 }

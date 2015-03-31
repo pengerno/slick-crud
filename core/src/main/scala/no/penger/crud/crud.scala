@@ -1,8 +1,14 @@
 package no.penger
 
+import slick.lifted.{Rep, FlatShapeLevel, Shape}
+
 package object crud{
 
-  type AbstractTable[T] = scala.slick.lifted.AbstractTable[T]
+  /* we need to prove this quite a few places, so avoid repeating ourselves */
+  type FlatRepShape[T] = Shape[FlatShapeLevel, Rep[T], T, Rep[T]]
+  
+  /* package level import */
+  type AbstractTable[T] = slick.lifted.AbstractTable[T]
 
   /* work around limitations in scala stdlib, without taking scalaz dependency */
 
