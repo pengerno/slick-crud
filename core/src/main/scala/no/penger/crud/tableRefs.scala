@@ -30,7 +30,7 @@ trait tableRefs extends tableMetadata with slickIntegration {
                           pageSize:   Option[Int],
                           idCol:      P ⇒ Column[ID])
                          (implicit cr: CellRow[P#TableElementType]) extends TableRef[ID, P, P, P#TableElementType]{
-    override val metadata          = Metadata.infer(AstParser.tableName(query), query, idCol)
+    override val metadata          = Metadata.infer(TableName(query.baseTableRow.tableName), query, idCol)
     override val base              = this
     override def queryById(id: ID) = query.filter(row ⇒ idCol(row) === id)
   }

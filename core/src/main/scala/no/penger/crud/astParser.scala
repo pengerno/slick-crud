@@ -1,170 +1,108 @@
 package no.penger
 package crud
 
-import scala.slick.ast._
-import scala.slick.lifted.{Column, Query, TableQuery}
+import slick.ast._
+import slick.lifted.{Query, Rep}
 
 trait astParser extends errors {
 
   /**
-   * This class extracts pairs of table and column names from a query.
-   * That is a bit harder than i appreciated.
+   * Given a query, we need to know which columns the query maps to.
+   * We do this by parsing slicks internal ast:
    *
-   * In the following implementation, the problem is split in two:
-   * `selectedColumns` is the easy part - it extracts references to all selected columns from the outermost layer of a query
-
-   * `resolveSelectedColumns` looks up the references (as such a reference generally does not contain the column name)
-   *  elsewhere in the AST. We start by recursing into the deepest/first layer of the query AST, and add/remove
-   *  selected columns following the AST. Finally the names are looked up and returned.
+   * Vaguely, the process goes like this:
+   *  - Construct a Map[Symbol, Node] which we use to resolve references (parser.subNodesByReference())
+   *  - Construct a Seq[Select] (parser.selectFrom()). A Select is a reference to (sets of) column(s)
+   *  - For every Select, resolve it to column names in the AST (parser.resolve())
    */
   object AstParser{
 
-    def colName[TABLE <: AbstractTable[_]](t: TABLE, c: Column[Any]): ColumnInfo =
+    def colName[TABLE <: AbstractTable[_]](t: TABLE, c: Rep[Any]): ColumnInfo =
       c.toNode match {
-        case selectedColumns.SingleSelect(Select(_, fs@FieldSymbol(colName))) ⇒ ColumnInfo(TableName(t.tableName), ColumnName(colName), fs.options)
+        case parser.SingleSelect(Select(_, fs@FieldSymbol(colName))) ⇒
+          ColumnInfo(TableName(t.tableName), ColumnName(colName), fs.options)
       }
 
     def colNames(q: Query[_, _, Seq]): Seq[ColumnInfo] =
-      explodeOnError(resolveColumnsUnderNode(q.toNode)).flatMap(_.ns)
+      parser(q.toNode)
 
-    def tableName(t: TableQuery[_]): TableName =
-      explodeOnError(TableNameParser(t.toNode) toRight Seq(errorMsg(s"Could not find table name in table query $t")))
-
-    /**
-     * These are all non-recoverable errors anyway, so don't think i will bother to thread them through the rest of the application
-     */
-    private def explodeOnError[R](res: Either[Seq[Error], R]): R = res match {
-      case Left(errors) ⇒ sys.error(s"Internal error in slick-crud's AST parser: ${errors.mkString(", ")}")
-      case Right(ok)    ⇒ ok
-    }
-
-    /* this exists to enforce a border of which layer of `Seq`s can be flattened. We need to
-     *  be careful the indices utilized in resolveOne() can reference both a single select or a set of them */
-    private[AstParser] case class Group[N](ns: Seq[N])
-
-    private object TableNameParser{
-      def apply(n: Node): Option[TableName] = n match {
-        case TableNode(_, tableName, _, _, _) ⇒ Some(TableName(tableName))
-        case TableExpansion(_, table, _)      ⇒ apply(table)
-        case n: FilteredQuery                 ⇒ apply(n.from)
-        case n: UnaryNode                     ⇒ apply(n.child)
-        case _                                ⇒ None
-      }
-    }
-
-    private object selectedColumns {
-      /** This returns Seq because of joins, think of it as a Group[Select] most of the time */
-      def apply(under: Node): Seq[Group[Select]] =
-        colsFor(under) map selectFrom
-
-      def colsFor(n: Node): Seq[Node] = n match {
-        case TableExpansion(_, _, cs)      ⇒ Seq(cs)
-        case Bind(_, _, cs)                ⇒ Seq(cs)
-        case Join(_, _, left, right, _, _) ⇒ colsFor(left) ++ colsFor(right)
-        case n: FilteredQuery              ⇒ colsFor(n.from)
-        case n: UnaryNode                  ⇒ colsFor(n.child)
+    private object parser {
+      def apply(root: Node): Seq[ColumnInfo] = {
+        val nodeLookup: Map[Symbol, Node] = subNodesByReference(root).toMap
+        selects(nodeLookup)(root)
       }
 
-      def selectFrom(n: Node): Group[Select] =
-        n match {
-          case SingleSelect(s)               ⇒ Group(Seq(s))
+      def subNodesByReference(n: Node): Seq[(Symbol, Node)] = {
+        val references = n match {
+          case t@TableExpansion(gen, _, _)  ⇒ Seq((gen, t))
+          case defNode: DefNode             ⇒ defNode.nodeGenerators
+          case else_                        ⇒ Seq.empty
+        }
+        references ++ (n.nodeChildren flatMap subNodesByReference)
+      }
+
+      def selects(nodeLookup: Map[Symbol, Node])(root: Node): Seq[ColumnInfo] =
+        selectFrom(root) flatMap resolve(nodeLookup)
+
+      def selectFrom(n: Node): Seq[Select] =
+        skipNotInteresting(n) match {
+          case TableExpansion(_, _, c)       ⇒ selectFrom(c)
+          case Bind(_, _, c)                 ⇒ selectFrom(c)
           case Pure(c, _)                    ⇒ selectFrom(c)
           case TypeMapping(c, _, _)          ⇒ selectFrom(c)
-          case _: ProductNode | _: UnaryNode ⇒
-            Group(n.nodeChildren.collect { case SingleSelect(s) ⇒ s})
+          case Join(_, _, left, right, _, _) ⇒ selectFrom(left) ++ selectFrom(right)
+          case pn: ProductNode ⇒
+            pn.nodeChildren.collect { case SingleSelect(s) ⇒ s}
+          case SingleSelect(s)               ⇒ Seq(s)
         }
 
       object SingleSelect {
-        def unapply(nn: Node): Option[Select] =
-          nn match {
+        def unapply(n: Node): Option[Select] =
+          n match {
             /* normal column */
-            case s: Select                    ⇒ Some(s)
+            case s: Select                               ⇒ Some(s)
             /* optional column */
-            case OptionApply(s: Select)       ⇒ Some(s)
+            case OptionApply(s: Select)                  ⇒ Some(s)
             /* nested (set of) column(s) */
-            case TypeMapping(s: Select, _, _) ⇒ Some(s)
-            case _                            ⇒ None
+            case TypeMapping(s: Select, _, _)            ⇒ Some(s)
           }
       }
-    }
 
-    /** looks up a node by reference in a sub-tree */
-    private object lookupRef {
-      def apply(ref: Ref, under: Node): Either[Error, Node] =
-        doLookup(ref, under).orError(s"Couldn't find referenced node $ref under $under")
-
-      def doLookup(ref: Ref, under: Node): Option[Node] = {
-        val Symbol = ref.sym
-
-        val foundOpt: Option[Node] = under match {
-          case defNode: DefNode ⇒
-            defNode.nodeGenerators.collectFirst {
-              case (Symbol, found) ⇒ found
-            }
-          case _ ⇒ None
-        }
-        foundOpt orElse under.nodeChildren.foldLeft[Option[Node]](None){
-          case (None, child) ⇒ doLookup(ref, child)
-          case (found, _)    ⇒ found
-        }
+      def skipNotInteresting(n: Node): Node = n match {
+        case s: Select        ⇒ s
+        case n: UnaryNode     ⇒ skipNotInteresting(n.child)
+        case n: FilteredQuery ⇒ skipNotInteresting(n.from)
+        case _                ⇒ n
       }
-    }
 
-    private object resolveColumnsUnderNode {
-      def apply(under: Node): Either[Seq[Error], Seq[Group[ColumnInfo]]] =
-        sequence(selectedColumns(under) map resolveMany(under)).left.map(_.flatten)
-
-      def resolveMany(under: Node)(selects: Group[Select]): Either[Seq[Error], Group[ColumnInfo]] = for {
-        possiblyResolveds ← sequence(selects.ns map resolveOne(under)).left.map(_.flatten)
-        resolveds         ← sequence(possiblyResolveds).left.map(unresolveds ⇒ Seq(errorMsg(s"Couldn't resolve nodes $unresolveds")))
-      } yield Group(resolveds.flatMap(_.ns))
-
-      def resolveOne(under: Node)(select: Select): Either[Seq[Error], Either[Node, Group[ColumnInfo]]] = {
-        /**
-         *  Selects can be nested, and each layer might have a reference to a node somewhere else in a tree,
-         *  and it generally filters the set of selected columns referenced by that node.
-         *  Recurses down to deepest layer
-         */
-        val resolvedNode: Either[Seq[Error], Either[Node, Group[ColumnInfo]]] = select match {
-          case   Select(r: Ref, _)         ⇒ lookupRef(r, under).biMap(Seq(_), Left(_))
-          case   Select(inner: Select, _)  ⇒ resolveOne(under)(inner)
-        }
-
-        /** filtering columns and final name resolution (by matching FieldSymbol) */
-        resolvedNode.right.flatMap {
-          case Left(unresolved) ⇒
-            select.field match {
-              /**
-               * Here we resolve a node to column name(s), and pick the selected column name(s)
-               * based on the given index.
-               * The confusing thing is that the index can be used to filter on two levels:
-               * Either a set of columns, or one column exactly
-               */
-              case ElementSymbol(oneBasedIdx) ⇒
-                val columnGroupsE: Either[Seq[Error], Seq[Group[ColumnInfo]]] = resolveColumnsUnderNode(unresolved)
-                columnGroupsE.right.map{
-                  case columnGroups ⇒
-                    Right(
-                      if (columnGroups.size == 1) Group(Seq(columnGroups.head.ns(oneBasedIdx - 1)))
-                      else columnGroups(oneBasedIdx - 1)
-                    )
-                }
-              /** This is the actual resolve part, i.e. we are given the column name */
-              case fs@FieldSymbol(colName) ⇒
-                TableNameParser(unresolved) match {
-                  case Some(tableName) ⇒ Right(Right(Group(Seq(ColumnInfo(tableName, ColumnName(colName), fs.options)))))
-                  case None            ⇒ Left(Seq(errorMsg(s"Couldn't find tableName under $unresolved")))
-                }
-
-              case any ⇒ Left(Seq(errorMsg(s"Unhandled select field $any filter while resolving $unresolved")))
+      def resolve(nodeLookup: Map[Symbol, Node])(currentSelect: Select): Seq[ColumnInfo] = {
+        currentSelect match {
+          case Select(Ref(ref), FieldSymbol(name)) ⇒
+            skipNotInteresting(nodeLookup(ref)) match {
+              case TableExpansion(_, TableNode(_, tableName, _, _, _), colsNode) ⇒
+                selectFrom(colsNode).collectFirst {
+                  case found@Select(_, fs@FieldSymbol(`name`)) ⇒
+                    ColumnInfo(TableName(tableName), ColumnName(name), fs.options)
+                }.toSeq
+              case inner: Select =>
+                resolve(nodeLookup)(inner).find(_.name.toString == name).toSeq
             }
-          case Right(resolved) ⇒
-            select.field match {
-              /** filter out columns that were resolved earlier, but which is not selected at this layer */
-              case FieldSymbol(colName) ⇒
-                Right(Right(Group(resolved.ns.filter(_.name.toString =:= colName))))
-              case any ⇒ Left(Seq(errorMsg(s"Unhandled select field $any filter after having resolved $resolved")))
+          case Select(Ref(ref), ElementSymbol(oneBasedIdx)) ⇒
+            skipNotInteresting(nodeLookup(ref)) match {
+              case j: Join ⇒
+                selects(nodeLookup)(j.nodeChildren(oneBasedIdx - 1))
+              case b: Bind ⇒
+                Seq(selects(nodeLookup)(b)(oneBasedIdx - 1))
+              case inner: Select ⇒
+                //Seq(resolve(nodeLookup)(inner)(oneBasedIdx - 1))
+                resolve(nodeLookup)(inner)
             }
+          case Select(inner: Select, FieldSymbol(name)) ⇒
+            resolve(nodeLookup)(inner).find(_.name.toString == name).toSeq
+
+          case Select(inner: Select, ElementSymbol(oneBasedIdx)) ⇒
+            //Seq(resolve(nodeLookup)(inner)(oneBasedIdx - 1))
+            resolve(nodeLookup)(inner)
         }
       }
     }
