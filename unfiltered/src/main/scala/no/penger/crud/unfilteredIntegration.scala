@@ -14,10 +14,12 @@ trait unfilteredIntegration extends Plan with editorAbstracts with extractors wi
   /* all the editors you want to expose */
   def editors: Seq[EditorAbstract[_]]
 
+  def unFilteredEditors = editors.map(EditorUnfiltered(_))
+
   /* how you want to respond to the request, nice for wrapping the output in more html, for example */
   def respond(title: String)(body: PageFormat): ResponseFunction[Any]
 
-  override final lazy val intent = (editors.map(EditorUnfiltered(_).intent) :+ resourceIntent).reduce(_ orElse _)
+  override final lazy val intent = unFilteredEditors.foldLeft(resourceIntent)(_ orElse _.intent)
 
   case class EditorUnfiltered[ID](editor: EditorAbstract[ID]) extends Extractors[ID] with EditorUrls {
 

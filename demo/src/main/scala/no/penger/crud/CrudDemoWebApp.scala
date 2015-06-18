@@ -1,11 +1,10 @@
 package no.penger
 package crud
 
-import javax.servlet.ServletContext
-
 import com.typesafe.scalalogging.LazyLogging
 import org.joda.time.DateTime
 import unfiltered.filter.Plan
+import unfiltered.filter.request.ContextPath
 import unfiltered.response._
 
 import scala.slick.ast.JoinType
@@ -115,29 +114,33 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 }
 
 
+/* This demonstrates the wiring that you need to do in your application to get it working */
 object CrudDemoWebApp extends Plan with LazyLogging {
-  lazy val profile         = H2Driver
+  lazy val profile = H2Driver
   import profile.simple._
 
   val db = Database.forURL(
-    url = s"jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
+    url    = s"jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
     driver = "org.h2.Driver"
   )
 
-  class CrudUnfilteredDemo(context: ServletContext) extends StoreTables
-                                                    with CrudUnfiltered
-                                                    with StoreCrudInstances
-                                                    with GenDataModule
-                                                    with updateNotifierLogging
-                                                    with updateNotifierChangelog {
+  class CrudUnfilteredDemo(override val ctx: String) extends StoreTables
+                                                        with CrudUnfiltered
+                                                        with StoreCrudInstances
+                                                        with GenDataModule
+                                                        with updateNotifierLogging
+                                                        with updateNotifierChangelog {
+
     override lazy val profile = CrudDemoWebApp.profile
     override lazy val db      = CrudDemoWebApp.db
-    override      val ctx     = context.getContextPath
 
-    /* what information to store about a user based on the http request */
-    override def userDetails(req: REQ) = (Option(req.underlying.getRemoteUser) :: Option(req.underlying.getRemoteAddr) :: Nil).flatten.mkString("@")
+    /* What information to store about a user based on the http request.
+     * You could use cookies, auth headers or whatever you want to identify */
+    override def userDetails(req: REQ) =
+      List(Option(req.underlying.getRemoteUser), Option(req.underlying.getRemoteAddr))
+       .flatten.mkString("@")
 
-    /* setup notification and saving to changelog */
+    /* log changes to log file and to changelog-table */
     object notifier extends UpdateNotifierLogging with UpdateNotifierChangelog with LazyLogging
 
     /* generate some data to play with */
@@ -149,10 +152,21 @@ object CrudDemoWebApp extends Plan with LazyLogging {
 
     }
 
+                        // It's not neccessary to explicitly tag types,
+                        // but it makes IDEs behave better if you have
+                        // many inter-linked tables
     lazy val storesRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
       TableRef("/stores", Stores, isEditable = true, pageSize = Some(50))(_.id)
+        //sort the table by name when we display it
         .projected(_.sortBy(_.name))
-        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id).map{ case (s, d) ⇒ (s.id, s.name, s.descr, s.closed, d.nickname.?)})
+        // include a column from another table when we display. This will not
+        // affect creating new rows, and the linked columns will not be editable
+        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id)
+                    .map{ case (s, d) ⇒
+                          (s.id, s.name, s.descr, s.closed, d.nickname.?)
+                        }
+                  )
+        //bind to another table on this tables' storeId
         .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
         .linkedOn(_._1, productsRef)(_._2)(_ === _)
         .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
@@ -191,8 +205,23 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     )
 
     override def respond(title: String)(body: NodeSeq): ResponseFunction[Any] =
-      Html5(PageTemplate.page(ctx, title)(body))
+      Html5(PageTemplate.page(ctx, title, unFilteredEditors.map {
+        e => (e.editor.tableName, e.url.Read)
+      })(body))
   }
 
-  override lazy val intent = new CrudUnfilteredDemo(config.getServletContext).intent
+  lazy val instance = new CrudUnfilteredDemo(config.getServletContext.getContextPath)
+
+  lazy val defaultIntent: Plan.Intent = {
+    case ContextPath(_, "/") =>
+      instance.respond("Slick-Crud store demo")(
+        <h1 style="text-align: center;">Choose a table above</h1>
+      )
+  }
+
+  override lazy val intent = instance.intent orElse defaultIntent
+}
+
+object Runner extends App {
+  unfiltered.jetty.Server.local(8080).plan(CrudDemoWebApp).run()
 }

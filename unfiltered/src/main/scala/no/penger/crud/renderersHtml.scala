@@ -6,11 +6,9 @@ import scala.xml.NodeSeq
 
 trait renderersHtml extends renderers with renderFormatHtml with urls {
 
-  implicit class XmlElemX(e: xml.Elem){
+  private implicit class XmlElemX(e: xml.Elem){
     def attachAttr(key: String, value: Option[String]) =
       e % xml.Attribute(key, Seq(xml.Text(value.getOrElse(""))), xml.Null)
-    def attachAttrIf(key: String, value: Option[String])(pred: Boolean) =
-      if (pred) attachAttr(key, value) else e
     def attachAttrIfNot(key: String, value: Option[String])(pred: Boolean) =
       if (pred) e else attachAttr(key, value)
   }
@@ -30,7 +28,7 @@ trait renderersHtml extends renderers with renderFormatHtml with urls {
 
     /* this is a hack that is needed because if a column has an optional
         foreign key on a non-optional column in another table, we're
-        unable to capture with types so far that so far
+        unable to capture that with types so far.
      */
     def ensureOptional(mustBeOption: Boolean)(a: Any): Any = a match {
       case alreadyOption: Option[Any] ⇒ a

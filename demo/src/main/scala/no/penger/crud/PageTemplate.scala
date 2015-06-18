@@ -1,7 +1,9 @@
 package no.penger.crud
 
+import linx.StaticLinx
+
 object PageTemplate {
-  def page(ctx: String, title: String)(body: xml.NodeSeq) =
+  def page(ctx: String, title: String, tables: Seq[(TableName, StaticLinx)])(body: xml.NodeSeq) =
     <html lang="en">
       <head>
         <meta charset="utf-8"/>
@@ -11,6 +13,14 @@ object PageTemplate {
         <script src={ctx + "/slick-crud/crud.js"} type="text/javascript"></script>
       </head>
       <body>
+        <table><tr>
+          <td style="text-align:center"><h3>All tables:</h3></td>
+          {tables map {
+            case (tableName, link) =>
+              <td style="text-align:center"><a class="btn-style" href={link()}>{tableName.toString}</a></td>
+          }
+        }</tr></table>
+        <br/>
         <div>{body}</div>
       </body>
     </html>
