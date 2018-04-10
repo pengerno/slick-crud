@@ -16,7 +16,7 @@ trait errors {
   }
 
   private[crud] implicit class TryX[T](val e: Try[T]) {
-    def toEither[L](left: Throwable ⇒ L): Either[L, T] = e match {
+    def asEither[L](left: Throwable ⇒ L): Either[L, T] = e match {
       case Success(t) ⇒ Right(t)
       case Failure(f) ⇒ Left(left(f))
     }

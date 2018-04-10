@@ -47,7 +47,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
         updater        = row map (slickTable =>
                             (findColumnWithName(slickTable, columnName) map ensureOptionalColumn(validValue)).get
                           )
-        oldValueOpt    ← Try(db withSession (implicit s ⇒ updater.firstOption)).toEither(errorExc)
+        oldValueOpt    ← Try(db withSession (implicit s ⇒ updater.firstOption)).asEither(errorExc)
         _              ← db withTransaction (implicit s ⇒ ensureOneRowChanged(Try(updater update validValue)))
       } yield (oldValueOpt map cell.toStr, value)
 
@@ -63,7 +63,7 @@ trait crudActions extends tableRefs with columnPicker with dbIntegration with po
             /* since there was no auto-generated id, dig out the id from what we inserted */
             _ ⇒ ref.metadata.extractIdFromRow(toInsert)
           }
-        }.toEither(t ⇒ Seq(errorExc(t)))
+        }.asEither(t ⇒ Seq(errorExc(t)))
 
       for {
         toInsert ← ref.metadata.parseRow(params)

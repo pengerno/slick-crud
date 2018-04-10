@@ -7,6 +7,8 @@ object Build extends sbt.Build {
 
   val basename = "slick-crud"
 
+  val scalaVersions = List("2.12.4", "2.11.12")
+
   override def settings = super.settings ++ Seq(
     scalacOptions ++= Seq(
       "-deprecation",
@@ -26,7 +28,8 @@ object Build extends sbt.Build {
       "-Ywarn-unused-import"
     ),
     organization       := "no.penger",
-    scalaVersion       := "2.11.5"
+    scalaVersion       := scalaVersions.head,
+    crossScalaVersions := scalaVersions
   )
 
   lazy val buildSettings = Defaults.coreDefaultSettings ++ aetherSettings ++ releaseSettings ++ Seq(
@@ -49,9 +52,9 @@ object Build extends sbt.Build {
       settings     = buildSettings ++ Seq(libraryDependencies ++= deps :+ scalaReflect % scalaVersion.value)
     )
 
-  val unfilteredVersion   = "0.8.4"
+  val unfilteredVersion   = "0.9.1"
 
-  val scalatest  = "org.scalatest" %% "scalatest" % "2.2.2" % "test"
+  val scalatest  = "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   val testLogger = "org.slf4j" % "slf4j-simple" % "1.7.7"
 
   lazy val crud           = project("core")(
@@ -61,13 +64,13 @@ object Build extends sbt.Build {
   )
 
   lazy val crudUnfiltered = project("unfiltered", crud)(
-    "net.databinder"              %% "unfiltered-filter"          % unfilteredVersion,
-    "com.jteigen"                 %% "linx"                       % "0.2",
+    "ws.unfiltered"               %% "unfiltered-filter"          % unfilteredVersion,
+    "no.arktekk"                  %% "linx"                       % "0.4",
     "javax.servlet"                % "javax.servlet-api"          % "3.1.0" % "provided;test"
   )
 
   lazy val crudLogging    = project("logging", crud)(
-    "com.typesafe.scala-logging" %% "scala-logging"               % "3.1.0"
+    "com.typesafe.scala-logging" %% "scala-logging"               % "3.5.0"
   )
 
   lazy val crudChangelog  = project("changelog", crud)(
@@ -78,7 +81,7 @@ object Build extends sbt.Build {
   lazy val crudAll        = project("all", crudUnfiltered, crudChangelog, crudLogging)()
 
   lazy val crudDemo       = project("demo", crudAll)(
-    "net.databinder"              %% "unfiltered-jetty"           % unfilteredVersion,
+    "ws.unfiltered"               %% "unfiltered-jetty"           % unfilteredVersion,
     "com.h2database"               % "h2"                         % "1.4.183",
     scalatest,
     testLogger
