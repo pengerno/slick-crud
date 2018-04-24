@@ -1,20 +1,19 @@
 package no.penger.crud
 
 import org.scalatest.FunSuite
-
 import slick.ast.ColumnOption
-import slick.driver.JdbcDriver
+import slick.driver.PostgresDriver
 
 class AstParserTest
   extends FunSuite
   with astParser
   with slickIntegration {
 
-  override val profile = JdbcDriver
-  import profile.simple._
+  override val profile = PostgresDriver
+  import profile.api._
 
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
-    assertResult(shouldEqual, q.selectStatement)(op(q))
+    assertResult(shouldEqual, q.result)(op(q))
   }
   def c(s: String, options: ColumnOption[_]*) = {
     val parts = s.split("\\.")

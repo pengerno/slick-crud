@@ -11,14 +11,14 @@ object Build extends sbt.Build {
 
   override def settings = super.settings ++ Seq(
     scalacOptions ++= Seq(
-//      "-deprecation",
+      "-deprecation",
       "-encoding", "UTF-8",
       "-feature",
       "-language:existentials",
       "-language:higherKinds",
       "-language:implicitConversions",
       "-unchecked",
-//      "-Xfatal-warnings",
+      "-Xfatal-warnings",
       "-Xlint",
       "-Yno-adapted-args",
       "-Ywarn-dead-code",
@@ -58,7 +58,7 @@ object Build extends sbt.Build {
   val testLogger = "org.slf4j" % "slf4j-simple" % "1.7.7"
 
   lazy val crud           = project("core")(
-    "com.typesafe.slick"          %% "slick"                      % "3.0.0-RC2",
+    "com.typesafe.slick"          %% "slick"                      % "3.0.3",
     scalatest,
     testLogger % "test"
   )

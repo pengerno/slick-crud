@@ -3,7 +3,7 @@ package no.penger.crud
 import slick.lifted.CanBeQueryCondition
 
 trait syntax extends tableLinks with cellInstances {
-  import profile.simple._
+  import profile.api._
 
   object TableRef {
     /**

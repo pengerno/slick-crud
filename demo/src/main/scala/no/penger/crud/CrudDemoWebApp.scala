@@ -38,7 +38,7 @@ trait StoreDomain{
 }
 
 trait StoreTables extends StoreDomain with dbIntegration {
-  import profile.simple._
+  import profile.api._
 
   /* these type class instances are to enable the use of the types in slick */
   implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.value, Desc)
@@ -51,7 +51,7 @@ trait StoreTables extends StoreDomain with dbIntegration {
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id        = column[StoreId]("id")
     def name      = column[Name]   ("name")
-    def descr     = column[Desc]   ("description", O.Nullable).?
+    def descr     = column[Option[Desc]]   ("description")
     def closed    = column[Boolean]("closed")
     def *         = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
   }
@@ -76,20 +76,20 @@ trait StoreTables extends StoreDomain with dbIntegration {
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
-    val worksAt   = column[StoreId]   ("works_at", O.Nullable).?
-    val role      = column[Role]      ("role", O.Nullable).?
-    val good      = column[Boolean]   ("good", O.Nullable).?
+    val worksAt   = column[StoreId]   ("works_at").?
+    val role      = column[Role]      ("role").?
+    val good      = column[Boolean]   ("good").?
     def *         = (id, name, worksAt, role, good) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
 
-  db.withTransaction{
-    implicit tx ⇒
-      Stores.schema.create
-      StoreNickNames.schema.create
-      Products.schema.create
-      Employees.schema.create
-  }
+  lazy val transaction = for {
+    _ <- Stores.schema.create
+    _ <- StoreNickNames.schema.create
+    _ <- Products.schema.create
+    _ <- Employees.schema.create
+  } yield ()
+  db.run(transaction.transactionally).await
 }
 
 trait StoreCrudInstances extends StoreDomain with cellRowInstances {
@@ -116,7 +116,7 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 /* This demonstrates the wiring that you need to do in your application to get it working */
 object CrudDemoWebApp extends Plan with LazyLogging {
   lazy val profile = H2Driver
-  import profile.simple._
+  import profile.api._
 
   val db = Database.forURL(
     url    = s"jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
@@ -142,14 +142,16 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     /* log changes to log file and to changelog-table */
     object notifier extends UpdateNotifierLogging with UpdateNotifierChangelog with LazyLogging
 
-    /* generate some data to play with */
-    db.withTransaction{implicit s ⇒
-      Stores         insertAll (GenData.stores         :_*)
-      StoreNickNames insertAll (GenData.storeNicknames :_*)
-      Employees      insertAll (GenData.employees      :_*)
-      Products       insertAll (GenData.products       :_*)
 
-    }
+    val insertTrans = for {
+      _ <- Stores ++= GenData.stores
+      _ <- StoreNickNames ++= GenData.storeNicknames
+      _ <- Employees      ++= GenData.employees
+      _ <- Products       ++= GenData.products
+    } yield ()
+
+    /* generate some data to play with */
+    db.run(insertTrans.transactionally).await
 
                         // It's not neccessary to explicitly tag types,
                         // but it makes IDEs behave better if you have
@@ -186,7 +188,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
 
     /* also expose a readonly version of the changelog */
     val changeLogRef = {
-      db.withTransaction(implicit tx ⇒ notifier.Changelog.schema.create)
+      db.run(notifier.Changelog.schema.create).await
 
       implicit val cellTableName = SimpleCell[TableName ](_.toString, TableName)
       implicit val cellColName   = SimpleCell[ColumnName](_.toString, ColumnName)

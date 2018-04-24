@@ -2,7 +2,7 @@ package no.penger.crud
 
 trait tableMetadata extends cells with astParser with slickIntegration {
 
-  import profile.simple._
+  import profile.api._
 
   object Metadata {
 

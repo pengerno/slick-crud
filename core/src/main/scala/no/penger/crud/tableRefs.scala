@@ -1,7 +1,7 @@
 package no.penger.crud
 
 trait tableRefs extends tableMetadata with slickIntegration {
-  import profile.simple._
+  import profile.api._
 
   /**
    *  A reference to a slick table

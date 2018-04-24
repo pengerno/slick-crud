@@ -1,6 +1,9 @@
 package no.penger
 
-import slick.lifted.{Rep, FlatShapeLevel, Shape}
+import slick.lifted.{FlatShapeLevel, Rep, Shape}
+
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 
 package object crud{
 
@@ -49,4 +52,10 @@ package object crud{
   }
 
   implicit def any2stringadd(x: Option[Unit]): Option[Unit] = x
+
+  implicit class AwaitableOps[T](a: Future[T]){
+    def await = Await.result(a, Duration.Inf)
+  }
+
+  implicit val executionContext: ExecutionContext = ExecutionContext.global
 }

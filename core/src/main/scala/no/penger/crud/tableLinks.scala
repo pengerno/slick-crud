@@ -3,7 +3,7 @@ package no.penger.crud
 import slick.lifted.CanBeQueryCondition
 
 trait tableLinks extends tableRefs with dbIntegration {
-  import profile.simple._
+  import profile.api._
 
   /* A suitably long number for a dropdown*/
   val maxNumLinks = 300
@@ -41,13 +41,15 @@ trait tableLinks extends tableRefs with dbIntegration {
         f(FilteredTableRef[OID, OTABLE, OLP, OP, OC, C](to, filteredQ, toCol))
       }
     }
-    private lazy val fkCellWrapper: (Cell[OC]) ⇒ ConstrainedCell[OC] =
-      cell ⇒ ConstrainedCell(cell, Some(to.query.map(toCol).selectStatement))(db.withSession {
-        implicit s ⇒
-          val q = to.query.map(toCol)
-            val num = q.size.run
-            if (num < maxNumLinks) Some(q.list) else None
-      })
+    private lazy val fkCellWrapper: (Cell[OC]) ⇒ ConstrainedCell[OC] = {
+      val q = to.query.map(toCol)
+      val transaction = for {
+        s <- q.size.result
+        a <- if(s < maxNumLinks) q.result.map(Option(_)) else DBIO.successful(Option.empty)
+      } yield a
+
+      cell ⇒ ConstrainedCell(cell, to.query.map(toCol).result.statements.headOption)(db.run(transaction.transactionally).await)
+    }
 
     override val base               = from.base
     override val metadata           = from.metadata.withFkCell(from.query.map(fromCol), fkCellWrapper)
