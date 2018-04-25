@@ -2,7 +2,6 @@ package no.penger
 package crud
 
 import com.typesafe.scalalogging.LazyLogging
-import javax.servlet.ServletContext
 import org.joda.time.DateTime
 import slick.jdbc.H2Profile
 import unfiltered.filter.Plan

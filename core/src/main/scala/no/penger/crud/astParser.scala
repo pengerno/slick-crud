@@ -107,6 +107,7 @@ trait astParser extends errors {
           case Select(inner: Select, ElementSymbol(oneBasedIdx)) ⇒
             //Seq(resolve(nodeLookup)(inner)(oneBasedIdx - 1))
             resolve(nodeLookup)(inner)
+          case _ ⇒ Seq.empty[ColumnInfo]
         }
       }
     }

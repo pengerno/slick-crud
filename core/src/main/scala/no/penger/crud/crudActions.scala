@@ -1,11 +1,9 @@
 package no.penger.crud
 
-import scala.language.implicitConversions
 import slick.ast.BaseTypedType
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.language.implicitConversions
+import scala.util.{Failure, Success}
 
 trait crudActions extends tableRefs with columnPicker with dbIntegration with positions {
 
