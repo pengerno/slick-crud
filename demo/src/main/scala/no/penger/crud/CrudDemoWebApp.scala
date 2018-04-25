@@ -83,13 +83,16 @@ trait StoreTables extends StoreDomain with dbIntegration {
   }
   val Employees  = TableQuery[EmployeeT]
 
-  lazy val transaction = for {
-    _ <- Stores.schema.create
-    _ <- StoreNickNames.schema.create
-    _ <- Products.schema.create
-    _ <- Employees.schema.create
-  } yield ()
-  db.run(transaction.transactionally).await
+
+  db.run(
+    (for {
+      _ <- Stores.schema.create
+      _ <- StoreNickNames.schema.create
+      _ <- Products.schema.create
+      _ <- Employees.schema.create
+    } yield ()
+    ).transactionally
+  ).await
 }
 
 trait StoreCrudInstances extends StoreDomain with cellRowInstances {
@@ -143,15 +146,16 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     object notifier extends UpdateNotifierLogging with UpdateNotifierChangelog with LazyLogging
 
 
-    val insertTrans = for {
-      _ <- Stores ++= GenData.stores
-      _ <- StoreNickNames ++= GenData.storeNicknames
-      _ <- Employees      ++= GenData.employees
-      _ <- Products       ++= GenData.products
-    } yield ()
-
     /* generate some data to play with */
-    db.run(insertTrans.transactionally).await
+    db.run(
+      (for {
+          _ <- Stores ++= GenData.stores
+          _ <- StoreNickNames ++= GenData.storeNicknames
+          _ <- Employees      ++= GenData.employees
+          _ <- Products       ++= GenData.products
+        } yield ()
+      ).transactionally
+    ).await
 
                         // It's not neccessary to explicitly tag types,
                         // but it makes IDEs behave better if you have
