@@ -58,7 +58,7 @@ object Build extends sbt.Build {
   val testLogger = "org.slf4j" % "slf4j-simple" % "1.7.7"
 
   lazy val crud           = project("core")(
-    "com.typesafe.slick"          %% "slick"                      % "3.1.1",
+    "com.typesafe.slick"          %% "slick"                      % "3.2.3",
     scalatest,
     testLogger % "test"
   )

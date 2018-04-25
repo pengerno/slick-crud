@@ -2,12 +2,13 @@ package no.penger
 package crud
 
 import com.typesafe.scalalogging.LazyLogging
+import javax.servlet.ServletContext
 import org.joda.time.DateTime
+import slick.jdbc.H2Profile
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.response._
 
-import slick.driver.H2Driver
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -115,7 +116,7 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 
 /* This demonstrates the wiring that you need to do in your application to get it working */
 object CrudDemoWebApp extends Plan with LazyLogging {
-  lazy val profile = H2Driver
+  lazy val profile = H2Profile
   import profile.api._
 
   val db = Database.forURL(

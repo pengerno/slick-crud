@@ -4,8 +4,7 @@ package crud
 import com.typesafe.scalalogging.LazyLogging
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.FunSuite
-
-import slick.driver.H2Driver
+import slick.jdbc.H2Profile
 
 /**
 * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -17,7 +16,7 @@ class CrudTest
   with StoreTables with StoreCrudInstances      /* test tables */
   with LazyLogging {
 
-  override lazy val profile = H2Driver
+  override lazy val profile = H2Profile
   import profile.api._
 
   override lazy val db = Database.forURL(

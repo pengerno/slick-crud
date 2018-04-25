@@ -2,14 +2,14 @@ package no.penger.crud
 
 import org.scalatest.FunSuite
 import slick.ast.ColumnOption
-import slick.driver.PostgresDriver
+import slick.jdbc.PostgresProfile
 
 class AstParserTest
   extends FunSuite
   with astParser
   with slickIntegration {
 
-  override val profile = PostgresDriver
+  override val profile = PostgresProfile
   import profile.api._
 
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
