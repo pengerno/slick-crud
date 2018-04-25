@@ -76,9 +76,9 @@ trait StoreTables extends StoreDomain with dbIntegration {
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
-    val worksAt   = column[StoreId]   ("works_at").?
-    val role      = column[Role]      ("role").?
-    val good      = column[Boolean]   ("good").?
+    val worksAt   = column[Option[StoreId]]   ("works_at")
+    val role      = column[Option[Role]]      ("role")
+    val good      = column[Option[Boolean]]   ("good")
     def *         = (id, name, worksAt, role, good) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
@@ -167,10 +167,6 @@ object CrudDemoWebApp extends Plan with LazyLogging {
                           (s.id, s.name, s.descr, s.closed, d.map(_.nickname))
                         }
                   )
-        //bind to another table on this tables' storeId
-        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
-        .linkedOn(_._1, productsRef)(_._2)(_ === _)
-        .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
 
     lazy val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
       TableRef("/employees", Employees, isEditable = true)(_.id)
@@ -186,6 +182,13 @@ object CrudDemoWebApp extends Plan with LazyLogging {
       TableRef("/storeNicknames",  StoreNickNames)(_.id)
        .linkedOn(_.id, storesRef)(_._1)(_ === _)
 
+    //bind to another table on this tables' storeId
+    val linkedStoreRef =
+      storesRef
+        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
+        .linkedOn(_._1, productsRef)(_._2)(_ === _)
+        .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
+
     /* also expose a readonly version of the changelog */
     val changeLogRef = {
       db.run(notifier.Changelog.schema.create).await
@@ -200,7 +203,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     override val editors = Seq(
       Editor(employeeRef,       notifier),
       Editor(productsRef,       notifier),
-      Editor(storesRef,         notifier),
+      Editor(linkedStoreRef,    notifier),
       Editor(storeNickNamesRef, notifier),
       Editor(changeLogRef,      notifier)
     )
