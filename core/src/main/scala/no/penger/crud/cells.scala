@@ -46,7 +46,7 @@ trait cells extends booleanLike with errors {
     override val isOptional             = false
     override val typeName               = implicitly[ClassTag[E]].runtimeClass.getSimpleName
     override def toStr(b: E)            = asString(b)
-    override def fromStr(value: String) = Try(fromString(value)).toEither(t ⇒ errorMsg(s"$value is not a valid boolean"))
+    override def fromStr(value: String) = Try(fromString(value)).asEither(t ⇒ errorMsg(s"$value is not a valid boolean"))
     override def constrainedValues      = Some(_ ⇒ Some(possibleValues))
   }
 

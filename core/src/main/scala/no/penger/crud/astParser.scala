@@ -3,6 +3,7 @@ package crud
 
 import slick.ast._
 import slick.lifted.{Query, Rep}
+import slick.util.ConstArray
 
 trait astParser extends errors {
 
@@ -32,13 +33,15 @@ trait astParser extends errors {
         selects(nodeLookup)(root)
       }
 
-      def subNodesByReference(n: Node): Seq[(Symbol, Node)] = {
-        val references = n match {
-          case t@TableExpansion(gen, _, _)  ⇒ Seq((gen, t))
-          case defNode: DefNode             ⇒ defNode.nodeGenerators
-          case else_                        ⇒ Seq.empty
+      def subNodesByReference(n: Node): ConstArray[(Symbol, Node)] = {
+        val references: ConstArray[(Symbol, Node)] = n match {
+          case t@TableExpansion(gen, _, _)  ⇒ ConstArray((gen, t))
+          case defNode: DefNode             ⇒ defNode.generators
+          case pure@Select(in, field)       ⇒ ConstArray((field, in))
+          case else_                        ⇒ ConstArray.empty
         }
-        references ++ (n.nodeChildren flatMap subNodesByReference)
+
+        references ++ n.children.flatMap(subNodesByReference)
       }
 
       def selects(nodeLookup: Map[Symbol, Node])(root: Node): Seq[ColumnInfo] =
@@ -52,7 +55,7 @@ trait astParser extends errors {
           case TypeMapping(c, _, _)          ⇒ selectFrom(c)
           case Join(_, _, left, right, _, _) ⇒ selectFrom(left) ++ selectFrom(right)
           case pn: ProductNode ⇒
-            pn.nodeChildren.collect { case SingleSelect(s) ⇒ s}
+            pn.children.toSeq.collect { case SingleSelect(s) ⇒ s}
           case SingleSelect(s)               ⇒ Seq(s)
         }
 
@@ -63,6 +66,8 @@ trait astParser extends errors {
             case s: Select                               ⇒ Some(s)
             /* optional column */
             case OptionApply(s: Select)                  ⇒ Some(s)
+            /* optional columns as used with joins */
+            case OptionFold(from, _, SingleSelect(s), _) ⇒ Some(s)
             /* nested (set of) column(s) */
             case TypeMapping(s: Select, _, _)            ⇒ Some(s)
           }
@@ -79,10 +84,12 @@ trait astParser extends errors {
         currentSelect match {
           case Select(Ref(ref), FieldSymbol(name)) ⇒
             skipNotInteresting(nodeLookup(ref)) match {
-              case TableExpansion(_, TableNode(_, tableName, _, _, _), colsNode) ⇒
-                selectFrom(colsNode).collectFirst {
+              case TableExpansion(_, TableNode(_, tableName, _, _), colsNode) ⇒
+                (selectFrom(colsNode) ++ nodeLookup.keys).collectFirst {
                   case found@Select(_, fs@FieldSymbol(`name`)) ⇒
                     ColumnInfo(TableName(tableName), ColumnName(name), fs.options)
+                  case found: FieldSymbol =>
+                    ColumnInfo(TableName(tableName), ColumnName(name), found.options)
                 }.toSeq
               case inner: Select =>
                 resolve(nodeLookup)(inner).find(_.name.toString == name).toSeq
@@ -90,7 +97,7 @@ trait astParser extends errors {
           case Select(Ref(ref), ElementSymbol(oneBasedIdx)) ⇒
             skipNotInteresting(nodeLookup(ref)) match {
               case j: Join ⇒
-                selects(nodeLookup)(j.nodeChildren(oneBasedIdx - 1))
+                selects(nodeLookup)(j.children(oneBasedIdx - 1))
               case b: Bind ⇒
                 Seq(selects(nodeLookup)(b)(oneBasedIdx - 1))
               case inner: Select ⇒
@@ -103,6 +110,7 @@ trait astParser extends errors {
           case Select(inner: Select, ElementSymbol(oneBasedIdx)) ⇒
             //Seq(resolve(nodeLookup)(inner)(oneBasedIdx - 1))
             resolve(nodeLookup)(inner)
+          case _ ⇒ Seq.empty[ColumnInfo]
         }
       }
     }

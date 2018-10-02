@@ -1,5 +1,5 @@
 package no.penger.crud
 
 trait slickIntegration {
-  val profile: slick.driver.JdbcDriver
+  val profile: slick.jdbc.JdbcProfile
 }

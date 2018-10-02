@@ -8,7 +8,7 @@ trait updateNotifierChangelog extends updateNotifier with dbIntegration {
   trait UpdateNotifierChangelog extends UpdateNotifier {
     val changelogTableName = "crud_changelog"
 
-    import profile.simple._
+    import profile.api._
     implicit val m0 = MappedColumnType.base[TableName,  String](_.toString, TableName)
     implicit val m1 = MappedColumnType.base[ColumnName, String](_.toString, ColumnName)
     implicit val m2 = MappedColumnType.base[DateTime, Timestamp](dt ⇒ new Timestamp(dt.getMillis), ts ⇒ DateTime.now().withMillis(ts.getTime))
@@ -32,7 +32,7 @@ trait updateNotifierChangelog extends updateNotifier with dbIntegration {
       super.notifyUpdated(req)(s)
       s match {
         case Updated(mountedAt, t, col, row, from, to) ⇒
-          db.withSession(implicit s ⇒ Changelog.insert((0L, mountedAt, t, col, row, from, to, DateTime.now, userDetails(req))))
+          db.run(Changelog += ((0L, mountedAt, t, col, row, from, to, DateTime.now, userDetails(req)))).await
           ()
         case _ ⇒ ()
       }

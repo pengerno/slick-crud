@@ -4,8 +4,7 @@ package crud
 import com.typesafe.scalalogging.LazyLogging
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.FunSuite
-
-import scala.slick.driver.H2Driver
+import slick.jdbc.H2Profile
 
 /**
 * Here we wire up a test version of crud wired to use 'String' instead of 'NodeSeq'.
@@ -17,8 +16,8 @@ class CrudTest
   with StoreTables with StoreCrudInstances      /* test tables */
   with LazyLogging {
 
-  override lazy val profile = H2Driver
-  import profile.simple._
+  override lazy val profile = H2Profile
+  import profile.api._
 
   override lazy val db = Database.forURL(
     url = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
@@ -39,8 +38,8 @@ class CrudTest
   val ProductsTupled = TableQuery[ProductTupledT]
 
   /* some utility functions */
-  def insertProduct(p: Product)(implicit s: Session): ProductId =
-    (Products returning Products.map(_.id)).insert(p)
+  def insertProduct(p: Product): ProductId =
+    db.run(Products.returning(Products.map(_.id)) += p).await
 
   def containAssert(shouldContain: Boolean, haystack: PageFormat, needle: String) = {
     assert(shouldContain == (haystack./*YOLO*/toString() contains needle), haystack)
@@ -79,8 +78,8 @@ class CrudTest
         (ref: TableRef[ID, TABLE, LP, P], n: UpdateNotifier = noop) =
     Editor(ref, n)
 
-  val (pid1, pid2) = db.withSession{implicit s ⇒
-    Stores.insert(Store(storeId, Name("store"), None, closed = true))
+  val (pid1, pid2) = {
+    db.run(Stores += Store(storeId, Name("store"), None, closed = true)).await
     val pid1 = insertProduct(Product(ignore, n1, q1, storeId))
     val pid2 = insertProduct(Product(ignore, n2, 100, storeId))
     (pid1, pid2)
@@ -123,7 +122,7 @@ class CrudTest
 
   test("update (class ⇒ tuple) editor"){
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.name))), failOnUpdateFail)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
+    val pid = insertProduct(Product(ignore, n2, 100, storeId))
 
     e.update((), pid, ColumnName("name"), n3.value)
 
@@ -134,7 +133,7 @@ class CrudTest
   test("update (tuple ⇒ tuple) editor"){
 
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id).projected(_.map(r ⇒ (r.quantity, r.name))), failOnUpdateFail)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    val pid = insertProduct(Product(ignore, n2, q1, storeId))
 
     e.update((), pid, ColumnName("name"), n3.value)
 
@@ -145,7 +144,7 @@ class CrudTest
   test("update (tuple ⇒ sorted tuple) editor"){
 
     val e   = Ed(TableRef(ignoreMounted, ProductsTupled)(_.id).projected(_.sortBy(_.quantity).map(r ⇒ (r.quantity, r.name))), failOnUpdateFail)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    val pid = insertProduct(Product(ignore, n2, q1, storeId))
 
     e.update((), pid, ColumnName("name"), n3.value)
 
@@ -155,7 +154,7 @@ class CrudTest
 
   test("update (class ⇒ class) editor"){
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id), failOnUpdateFail)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    val pid = insertProduct(Product(ignore, n2, q1, storeId))
 
     e.update((), pid, ColumnName("name"), n3.value)
 
@@ -165,7 +164,7 @@ class CrudTest
 
   test("update only chosen columns"){
     val e        = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(r ⇒ (r.id, r.soldBy))), failOnUpdateSucceed)
-    val pid      = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, 100, storeId)))
+    val pid      = insertProduct(Product(ignore, n2, 100, storeId))
     val colName  = ColumnName("name")
     val res      = e.update((), pid, colName, n3.value)
     val expected = Left(UpdateFailed(ignoreMounted, e.tableName, colName, cellProductId.toStr(pid), n3.value, ErrorMsg("projection has no cell with name name")))
@@ -175,13 +174,27 @@ class CrudTest
   test("update only valid id") {
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id), failOnUpdateSucceed)
 
-    db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    insertProduct(Product(ignore, n2, q1, storeId))
 
     val colName         = ColumnName("name")
     val nonExistingPid  = ProductId(10001)
     val res             = e.update((), nonExistingPid, colName, n3.value)
 
     assert(true === res.isLeft)
+  }
+
+  test("update joined table") {
+    val products = TableRef(ignoreMounted, Products)(_.id).projected(_.joinLeft(Stores).on(_.soldBy === _.id).map{
+      case (p, sOpt) => (p.id, p.name, p.quantity, sOpt.map(_.name))
+    })
+    val e   = Ed(products, failOnUpdateFail)
+
+    val pid      = insertProduct(Product(ignore, n2, 100, storeId))
+
+    val colName         = ColumnName("name")
+    val res             = e.update((), pid, colName, n3.value)
+
+    assert(res === Right(Updated(ignoreMounted, e.tableName, colName, pid.id.toString, Some(n2.value), n3.value)))
   }
 
   test("option-mapping in table projection") {
@@ -198,7 +211,7 @@ class CrudTest
     val sid     = StoreId("asdasdsad")
     val colName = ColumnName("description")
 
-    db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
+    db.run(Stores += ((sid, Name("fin butikk"), None, false)))
 
     val res1 = e.update((), sid, colName, "")
     assert(res1 === Right(Updated(ignoreMounted, e.tableName, colName, cellStoreId.toStr(sid), Some(""), "")))
@@ -221,7 +234,7 @@ class CrudTest
     val sid     = StoreId("asdasdsad2")
     val colName = ColumnName("description")
 
-    db.withSession{implicit s ⇒ Stores.insert((sid, Name("fin butikk"), None, false))}
+    db.run(Stores += ((sid, Name("fin butikk"), None, false))).await
 
     val ret = e.update((), sid, colName, "arne")
     assert(ret === Right(Updated(ignoreMounted, e.tableName, colName, cellStoreId.toStr(sid), Some(""), "arne")))
@@ -229,7 +242,7 @@ class CrudTest
 
   test("update when id column not selected"){
     val e   = Ed(TableRef(ignoreMounted, Products)(_.id).projected(_.map(_.name)), failOnUpdateFail)
-    val pid = db.withSession(implicit s ⇒ insertProduct(Product(ignore, n2, q1, storeId)))
+    val pid = insertProduct(Product(ignore, n2, q1, storeId))
 
     e.update((), pid, ColumnName("name"), n3.value)
 
@@ -299,7 +312,7 @@ class CrudTest
 
   test("delete"){
     val e    = Ed(TableRef(ignoreMounted, Products, canDelete = true)(_.id))
-    val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
+    val pid1 = insertProduct(Product(ignore, n1, q1, storeId))
 
     assert(e.viewRow(pid1).head.content === Left((Some(cellProductId.toStr(pid1)), Some(Seq(pid1.id.toString, n1.value, q1.toString, storeId.value)))))
     assert(Right(Deleted(ignoreMounted, e.tableName, cellProductId.toStr(pid1))) === e.delete((), pid1))
@@ -308,7 +321,7 @@ class CrudTest
 
   test("delete not allowed"){
     val e    = Ed(TableRef(ignoreMounted, Products)(_.id))
-    val pid1 = db.withTransaction(implicit s ⇒ insertProduct(Product(ignore, n1, q1, storeId)))
+    val pid1 = insertProduct(Product(ignore, n1, q1, storeId))
 
     assert(Left(DeleteFailed(ignoreMounted, e.tableName, cellProductId.toStr(pid1), errorMsg("Can not delete"))) === e.delete((), pid1))
     assert(e.viewRow(pid1).nonEmpty)

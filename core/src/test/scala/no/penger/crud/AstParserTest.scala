@@ -1,20 +1,19 @@
 package no.penger.crud
 
 import org.scalatest.FunSuite
-
 import slick.ast.ColumnOption
-import slick.driver.JdbcDriver
+import slick.jdbc.PostgresProfile
 
 class AstParserTest
   extends FunSuite
   with astParser
   with slickIntegration {
 
-  override val profile = JdbcDriver
-  import profile.simple._
+  override val profile = PostgresProfile
+  import profile.api._
 
   def myAssert[E, U, R](q: Query[E, U, Seq], shouldEqual: R)(op: Query[E, U, Seq] ⇒ R) = {
-    assertResult(shouldEqual, q.selectStatement)(op(q))
+    assertResult(shouldEqual, q.result)(op(q))
   }
   def c(s: String, options: ColumnOption[_]*) = {
     val parts = s.split("\\.")
@@ -143,8 +142,8 @@ class AstParserTest
     val Two   = TableQuery[TwoT]
     val Three = TableQuery[ThreeT]
 
-    val q1 = One.outerJoin(Two).on(_.one === _.three).rightJoin(Three.sortBy(_.five)).on(_._1.one === _.five).map{
-      case ((one, two), three) ⇒ (one.one, two.four, three.six)
+    val q1 = One.joinFull(Two).on(_.one === _.three).joinRight(Three.sortBy(_.five)).on(_._1.map(_.one) === _.five).map{
+      case (onetwo, three) ⇒ (onetwo.flatMap(_._1.map(_.one)), onetwo.flatMap(_._2.map(_.four)), three.six)
     }
 
     myAssert(q1, Seq(c("t1.one"),  c("t2.four"), c("t3.six")))(AstParser.colNames)
@@ -164,8 +163,8 @@ class AstParserTest
     }
     val One = TableQuery[OneT]
     val Two = TableQuery[TwoT]
-    val q1 = One.leftJoin(Two).on(_.one === _.three).map{case (one, two) ⇒ (one.one, two.four)}
-    val q2 = Two.leftJoin(One).on(_.three === _.one).drop(2).sortBy(_._2.one.asc).map{case (two, one) ⇒ (two.four, one.one)}
+    val q1 = One.joinLeft(Two).on(_.one === _.three).map{case (one, two) ⇒ (one.one, two.map(_.four))}
+    val q2 = Two.joinLeft(One).on(_.three === _.one).drop(2).sortBy(_._2.map(_.one).asc).map{case (two, one) ⇒ (two.four, one.map(_.one))}
 
     myAssert(q1, Seq(c("t1.one"),  c("t2.four")))(AstParser.colNames)
     myAssert(q2, Seq(c("t2.four"), c("t1.one")))(AstParser.colNames)

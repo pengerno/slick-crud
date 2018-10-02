@@ -3,12 +3,11 @@ package crud
 
 import com.typesafe.scalalogging.LazyLogging
 import org.joda.time.DateTime
+import slick.jdbc.H2Profile
 import unfiltered.filter.Plan
 import unfiltered.filter.request.ContextPath
 import unfiltered.response._
 
-import scala.slick.ast.JoinType
-import scala.slick.driver.H2Driver
 import scala.xml.NodeSeq
 
 trait StoreDomain{
@@ -39,7 +38,7 @@ trait StoreDomain{
 }
 
 trait StoreTables extends StoreDomain with dbIntegration {
-  import profile.simple._
+  import profile.api._
 
   /* these type class instances are to enable the use of the types in slick */
   implicit lazy val m1 = MappedColumnType.base[Desc,       String](_.value, Desc)
@@ -52,7 +51,7 @@ trait StoreTables extends StoreDomain with dbIntegration {
   class StoreT(tag: Tag) extends Table[Store](tag, "stores") {
     def id        = column[StoreId]("id")
     def name      = column[Name]   ("name")
-    def descr     = column[Desc]   ("description", O.Nullable).?
+    def descr     = column[Option[Desc]]   ("description")
     def closed    = column[Boolean]("closed")
     def *         = (id, name, descr, closed) <> (Store.tupled, Store.unapply)
   }
@@ -77,20 +76,23 @@ trait StoreTables extends StoreDomain with dbIntegration {
   class EmployeeT(tag: Tag) extends Table[Employee](tag, "employees"){
     val id        = column[EmployeeId]("id", O.PrimaryKey, O.AutoInc)
     val name      = column[Name]      ("name")
-    val worksAt   = column[StoreId]   ("works_at", O.Nullable).?
-    val role      = column[Role]      ("role", O.Nullable).?
-    val good      = column[Boolean]   ("good", O.Nullable).?
+    val worksAt   = column[Option[StoreId]]   ("works_at")
+    val role      = column[Option[Role]]      ("role")
+    val good      = column[Option[Boolean]]   ("good")
     def *         = (id, name, worksAt, role, good) <> (Employee.tupled, Employee.unapply)
   }
   val Employees  = TableQuery[EmployeeT]
 
-  db.withTransaction{
-    implicit tx ⇒
-      Stores.ddl.create
-      StoreNickNames.ddl.create
-      Products.ddl.create
-      Employees.ddl.create
-  }
+
+  db.run(
+    (for {
+      _ <- Stores.schema.create
+      _ <- StoreNickNames.schema.create
+      _ <- Products.schema.create
+      _ <- Employees.schema.create
+    } yield ()
+    ).transactionally
+  ).await
 }
 
 trait StoreCrudInstances extends StoreDomain with cellRowInstances {
@@ -116,8 +118,8 @@ trait StoreCrudInstances extends StoreDomain with cellRowInstances {
 
 /* This demonstrates the wiring that you need to do in your application to get it working */
 object CrudDemoWebApp extends Plan with LazyLogging {
-  lazy val profile = H2Driver
-  import profile.simple._
+  lazy val profile = H2Profile
+  import profile.api._
 
   val db = Database.forURL(
     url    = s"jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
@@ -143,40 +145,39 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     /* log changes to log file and to changelog-table */
     object notifier extends UpdateNotifierLogging with UpdateNotifierChangelog with LazyLogging
 
-    /* generate some data to play with */
-    db.withTransaction{implicit s ⇒
-      Stores         insertAll (GenData.stores         :_*)
-      StoreNickNames insertAll (GenData.storeNicknames :_*)
-      Employees      insertAll (GenData.employees      :_*)
-      Products       insertAll (GenData.products       :_*)
 
-    }
+    /* generate some data to play with */
+    db.run(
+      (for {
+          _ <- Stores ++= GenData.stores
+          _ <- StoreNickNames ++= GenData.storeNicknames
+          _ <- Employees      ++= GenData.employees
+          _ <- Products       ++= GenData.products
+        } yield ()
+      ).transactionally
+    ).await
 
                         // It's not neccessary to explicitly tag types,
                         // but it makes IDEs behave better if you have
                         // many inter-linked tables
-    lazy val storesRef: TableRef[StoreId, StoreT, (Column[StoreId], Column[Name], Column[Option[Desc]], Column[Boolean], Column[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
+    lazy val storesRef: TableRef[StoreId, StoreT, (Rep[StoreId], Rep[Name], Rep[Option[Desc]], Rep[Boolean], Rep[Option[String]]), (StoreId, Name, Option[Desc], Boolean, Option[String])] =
       TableRef("/stores", Stores, isEditable = true, pageSize = Some(50))(_.id)
         //sort the table by name when we display it
         .projected(_.sortBy(_.name))
         // include a column from another table when we display. This will not
         // affect creating new rows, and the linked columns will not be editable
-        .projected(_.join(StoreNickNames, JoinType.Left).on(_.id === _.id)
+        .projected(_.joinLeft(StoreNickNames).on(_.id === _.id)
                     .map{ case (s, d) ⇒
-                          (s.id, s.name, s.descr, s.closed, d.nickname.?)
+                          (s.id, s.name, s.descr, s.closed, d.map(_.nickname))
                         }
                   )
-        //bind to another table on this tables' storeId
-        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
-        .linkedOn(_._1, productsRef)(_._2)(_ === _)
-        .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
 
     lazy val employeeRef: TableRef[EmployeeId, EmployeeT, EmployeeT, Employee] =
       TableRef("/employees", Employees, isEditable = true)(_.id)
        .projected(_.sortBy(_.name.asc))
        .linkedOn(_.worksAt, storesRef)(_._1)(_ === _)
 
-    lazy val productsRef: TableRef[ProductId, ProductT, (Column[ProductId], Column[StoreId], Column[Int], Column[Name]), (ProductId, StoreId, Int, Name)] =
+    lazy val productsRef: TableRef[ProductId, ProductT, (Rep[ProductId], Rep[StoreId], Rep[Int], Rep[Name]), (ProductId, StoreId, Int, Name)] =
       TableRef("/products",  Products, canDelete = true)(_.id)
        .projected(_.map(t ⇒ (t.id, t.soldBy, t.quantity, t.name)))
        .linkedOn(_._2, storesRef)(_._1)(_ === _)
@@ -185,9 +186,16 @@ object CrudDemoWebApp extends Plan with LazyLogging {
       TableRef("/storeNicknames",  StoreNickNames)(_.id)
        .linkedOn(_.id, storesRef)(_._1)(_ === _)
 
+    //bind to another table on this tables' storeId
+    val linkedStoreRef =
+      storesRef
+        .linkedOn(_._1, employeeRef)(_.worksAt)(_ === _)
+        .linkedOn(_._1, productsRef)(_._2)(_ === _)
+        .linkedOn(_._1, storeNickNamesRef)(_.id)(_ === _)
+
     /* also expose a readonly version of the changelog */
     val changeLogRef = {
-      db.withTransaction(implicit tx ⇒ notifier.Changelog.ddl.create)
+      db.run(notifier.Changelog.schema.create).await
 
       implicit val cellTableName = SimpleCell[TableName ](_.toString, TableName)
       implicit val cellColName   = SimpleCell[ColumnName](_.toString, ColumnName)
@@ -199,7 +207,7 @@ object CrudDemoWebApp extends Plan with LazyLogging {
     override val editors = Seq(
       Editor(employeeRef,       notifier),
       Editor(productsRef,       notifier),
-      Editor(storesRef,         notifier),
+      Editor(linkedStoreRef,    notifier),
       Editor(storeNickNamesRef, notifier),
       Editor(changeLogRef,      notifier)
     )
