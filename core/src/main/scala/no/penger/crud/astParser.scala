@@ -37,6 +37,7 @@ trait astParser extends errors {
         val references: ConstArray[(Symbol, Node)] = n match {
           case t@TableExpansion(gen, _, _)  ⇒ ConstArray((gen, t))
           case defNode: DefNode             ⇒ defNode.generators
+          case pure@Select(in, field)       ⇒ ConstArray((field, in))
           case else_                        ⇒ ConstArray.empty
         }
 
@@ -84,9 +85,11 @@ trait astParser extends errors {
           case Select(Ref(ref), FieldSymbol(name)) ⇒
             skipNotInteresting(nodeLookup(ref)) match {
               case TableExpansion(_, TableNode(_, tableName, _, _), colsNode) ⇒
-                selectFrom(colsNode).collectFirst {
+                (selectFrom(colsNode) ++ nodeLookup.keys).collectFirst {
                   case found@Select(_, fs@FieldSymbol(`name`)) ⇒
                     ColumnInfo(TableName(tableName), ColumnName(name), fs.options)
+                  case found: FieldSymbol =>
+                    ColumnInfo(TableName(tableName), ColumnName(name), found.options)
                 }.toSeq
               case inner: Select =>
                 resolve(nodeLookup)(inner).find(_.name.toString == name).toSeq
